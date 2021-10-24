@@ -1,25 +1,12 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <signal.h>
-
-#define BUFFER 1024
-#ifndef SO_REUSEPORT
-    #define SO_REUSEPORT 15  
-#endif
+#include "header.h"
 
 int serverSocket = -1; 
 int newSocket = -1; 
 int abortRequested = 0; 
 
-void PrintUsage(); 
-void SignalHandler(int signal); 
-void* ClientCommunication(void* data); 
+void printUsage(); 
+void signalHandler(int signal); 
+void* clientCommunication(void* data); 
 
 int main(int argc, char** argv){
     socklen_t addressLength;
@@ -27,12 +14,12 @@ int main(int argc, char** argv){
     int reuseValue = 1; 
 
     if(argc != 3){
-        PrintUsage();
+        printUsage();
         return EXIT_FAILURE; 
     }
 
     // Signal Handler
-    if(signal(SIGINT, SignalHandler) == SIG_ERR){
+    if(signal(SIGINT, signalHandler) == SIG_ERR){
         perror("Signal cannot be registered."); 
         return EXIT_FAILURE; 
     }
@@ -86,7 +73,7 @@ int main(int argc, char** argv){
         // Start Client
         fprintf(stdout, "Client connected from %s:%d...\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         
-        ClientCommunication(&newSocket); 
+        clientCommunication(&newSocket); 
 
         newSocket = -1; 
     }
@@ -104,7 +91,7 @@ int main(int argc, char** argv){
     return EXIT_SUCCESS; 
 }
 
-void* ClientCommunication(void* data){
+void* clientCommunication(void* data){
     char buffer[BUFFER]; 
     int size; 
     int* currentClientSocket = (int *)data; 
@@ -122,7 +109,7 @@ void* ClientCommunication(void* data){
     }
 
     do{
-        // Receive
+        // Receive Command
         size = recv(*currentClientSocket, buffer, BUFFER-1, 0);
         if(size == -1){
             if(abortRequested){
@@ -141,9 +128,72 @@ void* ClientCommunication(void* data){
             size -= 2; 
         else if(buffer[size-1] == '\n')
             --size;            
-
         buffer[size] = '\0'; // Terminate String
-        fprintf(stdout, "Message received: %s\n", buffer); 
+
+        if(strcmp(buffer, "SEND") == 0){
+            printf("SEND COMMAND RECEIVED\n");
+            
+            mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+
+            // Receive Sender
+            if(recv(*currentClientSocket, newMail->sender, sizeof(newMail->sender)-1, 0) == -1){
+                perror("RECV SENDER error");
+            } else {
+                printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
+            }
+
+            // Receive Receiver
+            if(recv(*currentClientSocket, newMail->receiver, sizeof(newMail->receiver)-1, 0) == -1){
+                perror("RECV RECEIVER error");
+            } else {
+                printf("RECEIVER: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
+            }
+
+            // Receive Receiver
+            if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject)-1, 0) == -1){
+                perror("RECV SUBJECT error");
+            } else {
+                printf("SUBJECT: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
+            }
+
+            // char mailBuffer[BUFFER]; 
+
+            // do{
+            //     size = readline(*currentClientSocket, mailBuffer, BUFFER-1); 
+            //     if(size == -1){
+            //         if(abortRequested){
+            //             perror("RECV error after abort"); 
+            //         }else{ 
+            //             perror("RECV error"); 
+            //         }
+            //         break; 
+            //     }
+            //     if(size == 0){
+            //         printf("Client closed remote socket\n"); 
+            //         break; 
+            //     }  
+
+            //     if(buffer[size-2] == '\r' && buffer[size-1] == '\n')
+            //         size -= 2; 
+            //     else if(buffer[size-1] == '\n')
+            //         --size;            
+            //     buffer[size] = '\0'; // Terminate String  
+            //     printf("%s\n", mailBuffer); 
+            // }while(strcmp(mailBuffer, ".") != 0); 
+            
+            
+            free(newMail); 
+            printf("MAIL RECEIVED\n");  
+
+        } else if(strcmp(buffer, "LIST") == 0){
+            printf("LIST COMMAND RECEIVED\n");
+        } else if(strcmp(buffer, "READ") == 0){
+            printf("READ COMMAND RECEIVED\n");
+        } else if(strcmp(buffer, "DEL") == 0){
+            printf("DEL COMMAND RECEIVED\n");
+        } else if(strcmp(buffer, "QUIT") == 0){
+            printf("QUIT COMMAND RECEIVED\n");
+        } 
 
         if(send(*currentClientSocket, "OK", 3, 0) == -1){
             perror("Server failed to send answer"); 
@@ -164,11 +214,11 @@ void* ClientCommunication(void* data){
     return NULL; 
 }
 
-void PrintUsage(){
+void printUsage(){
     fprintf(stdout, "./tw-server <port> <mail-spool-directory>\n"); 
 }
 
-void SignalHandler(int signal){
+void signalHandler(int signal){
     if(signal == SIGINT){
         fprintf(stdout, "Abort Requested..."); 
         abortRequested = 1; 

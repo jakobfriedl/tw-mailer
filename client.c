@@ -1,15 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <string.h>
-#include <unistd.h>
+#include "header.h"
 
-#define BUFFER 1024
+void printUsage();
 
-void PrintUsage(); 
 
 int main(int argc, char** argv){
 
@@ -40,7 +32,7 @@ int main(int argc, char** argv){
         port = atoi(argv[2]); 
         address.sin_port = htons(port); 
     }else{
-        PrintUsage(); 
+        printUsage(); 
         return EXIT_FAILURE; 
     }
 
@@ -66,7 +58,8 @@ int main(int argc, char** argv){
     do{
         if(fgets(buffer, BUFFER, stdin) != NULL){
             int size = strlen(buffer); 
-            // Remote new-lines at the end
+
+            // Remove new-lines at the end
             if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
                 size -= 2; 
                 buffer[size] = 0; 
@@ -75,12 +68,109 @@ int main(int argc, char** argv){
                 buffer[size] = 0; 
             }
             quit = strcmp(buffer, "QUIT") == 0; 
-
-            // Send Data
+            
+            if(size == 0) continue; 
+            
+            // Send Command
             if((send(clientSocket, buffer, size, 0) == -1)){
                 perror("SEND error");
                 break; 
             } 
+
+            if(strcmp(buffer, "SEND") == 0){
+                // Send Mail
+
+                mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+
+                // Send Sender
+                fgets(newMail->sender, sizeof(newMail->sender), stdin); 
+                int senderSize = (int)strlen(newMail->sender); 
+                if(newMail->sender[senderSize-2] == '\r' && newMail->sender[senderSize-1] == '\n'){
+                    newMail->sender[senderSize] = 0; 
+                    senderSize -= 2; 
+                }else if(newMail->sender[senderSize-1] == '\n'){
+                    newMail->sender[senderSize] = 0; 
+                    --senderSize;
+                }
+                newMail->sender[senderSize] = '\0'; 
+
+                if(writen(clientSocket, newMail->sender, sizeof(newMail->sender)-1) == -1){
+                    perror("SEND MAIL CONTENTS error"); 
+                } else {
+                    printf("sent %s\n", newMail->sender);
+                }
+
+                // Send Receiver
+                fgets(newMail->receiver, sizeof(newMail->receiver), stdin); 
+                int receiverSize = (int)strlen(newMail->receiver); 
+                if(newMail->receiver[receiverSize-2] == '\r' && newMail->receiver[receiverSize-1] == '\n'){
+                    newMail->receiver[receiverSize] = 0; 
+                    receiverSize -= 2; 
+                }else if(newMail->receiver[receiverSize-1] == '\n'){
+                    newMail->receiver[receiverSize] = 0; 
+                    --receiverSize;
+                }
+                newMail->receiver[receiverSize] = '\0'; 
+
+                if(writen(clientSocket, newMail->receiver, sizeof(newMail->receiver)-1) == -1){
+                    perror("SEND MAIL CONTENTS error"); 
+                } else {
+                    printf("sent %s\n", newMail->receiver);
+                }
+
+                // Send Subject
+                fgets(newMail->subject, sizeof(newMail->subject), stdin); 
+                int subjectSize = (int)strlen(newMail->subject); 
+                if(newMail->subject[subjectSize-2] == '\r' && newMail->subject[subjectSize-1] == '\n'){
+                    newMail->subject[subjectSize] = 0; 
+                    subjectSize -= 2; 
+                }else if(newMail->subject[subjectSize-1] == '\n'){
+                    newMail->subject[subjectSize] = 0; 
+                    --subjectSize;
+                }
+                newMail->subject[subjectSize] = '\0'; 
+
+                if(writen(clientSocket, newMail->subject, sizeof(newMail->subject)-1) == -1){
+                    perror("SEND MAIL CONTENTS error"); 
+                } else {
+                    printf("sent %s\n", newMail->subject);
+                }
+
+
+
+                // char payload[BUFFER]; 
+                // while(strcmp(fgets(payload, BUFFER-1, stdin),".\n") != 0){
+                //     int size = strlen(payload); 
+              
+                //     // Remove new-lines at the end
+                //     if(payload[size-2] == '\r' && payload[size-1] == '\n'){
+                //         size -= 2; 
+                //         payload[size] = 0; 
+                //     }else if(payload[size-1] == '\n'){
+                //         --size;
+                //         payload[size] = 0; 
+                //     }
+                //     payload[size] = '\0'; // Terminate String
+
+                //     if(writen(clientSocket, payload, BUFFER-1) == -1){
+                //         perror("SEND MAIL CONTENTS error"); 
+                //     }   
+                // }
+                
+                free(newMail); 
+
+                printf("MAIL SENT\n");
+            } else if(strcmp(buffer, "LIST") == 0){
+                printf("LIST COMMAND SENT\n");
+            } else if(strcmp(buffer, "READ") == 0){
+                printf("READ COMMAND SENT\n");
+            } else if(strcmp(buffer, "DEL") == 0){
+                printf("DEL COMMAND SENT\n");
+            } else if(strcmp(buffer, "QUIT") == 0){
+                printf("QUIT COMMAND SENT\n");
+            } else {
+                printf("Unknown command\n"); 
+            }
 
             // Receive Feedback
             size = recv(clientSocket, buffer, BUFFER-1, 0); 
@@ -110,6 +200,6 @@ int main(int argc, char** argv){
     return EXIT_SUCCESS; 
 }
 
-void PrintUsage(){
+void printUsage(){
     fprintf(stdout, "./tw-client <ip> <port>\n"); 
 }
