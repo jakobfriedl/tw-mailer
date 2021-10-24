@@ -146,59 +146,50 @@ void* clientCommunication(void* data){
             if(recv(*currentClientSocket, newMail->receiver, sizeof(newMail->receiver)-1, 0) == -1){
                 perror("RECV RECEIVER error");
             } else {
-                printf("RECEIVER: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
+                printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
             }
 
             // Receive Receiver
             if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject)-1, 0) == -1){
                 perror("RECV SUBJECT error");
             } else {
-                printf("SUBJECT: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
+                printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
             }
 
-            // char mailBuffer[BUFFER]; 
+            // Receive Message
+            do{
+                if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message)-1, 0) == -1){
+                    perror("RECV Message error");
+                } else {
+                    printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
+                }
+            }while(strcmp(newMail->message, ".") != 0);
 
-            // do{
-            //     size = readline(*currentClientSocket, mailBuffer, BUFFER-1); 
-            //     if(size == -1){
-            //         if(abortRequested){
-            //             perror("RECV error after abort"); 
-            //         }else{ 
-            //             perror("RECV error"); 
-            //         }
-            //         break; 
-            //     }
-            //     if(size == 0){
-            //         printf("Client closed remote socket\n"); 
-            //         break; 
-            //     }  
-
-            //     if(buffer[size-2] == '\r' && buffer[size-1] == '\n')
-            //         size -= 2; 
-            //     else if(buffer[size-1] == '\n')
-            //         --size;            
-            //     buffer[size] = '\0'; // Terminate String  
-            //     printf("%s\n", mailBuffer); 
-            // }while(strcmp(mailBuffer, ".") != 0); 
-            
-            
             free(newMail); 
-            printf("MAIL RECEIVED\n");  
-
+            printf("MAIL RECEIVED\n");
         } else if(strcmp(buffer, "LIST") == 0){
             printf("LIST COMMAND RECEIVED\n");
+            
         } else if(strcmp(buffer, "READ") == 0){
             printf("READ COMMAND RECEIVED\n");
         } else if(strcmp(buffer, "DEL") == 0){
             printf("DEL COMMAND RECEIVED\n");
         } else if(strcmp(buffer, "QUIT") == 0){
             printf("QUIT COMMAND RECEIVED\n");
-        } 
+            break; 
+        } else {
+            if(send(*currentClientSocket, "ERR", 3, 0) == -1){
+                perror("Server failed to send answer"); 
+                return NULL; 
+            }
+            continue; 
+        }
 
         if(send(*currentClientSocket, "OK", 3, 0) == -1){
             perror("Server failed to send answer"); 
             return NULL; 
         }
+        
 
     }while(strcmp(buffer, "QUIT") != 0 && !abortRequested); 
 

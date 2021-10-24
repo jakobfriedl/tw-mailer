@@ -20,7 +20,7 @@ typedef struct mail{
     char sender[BUFFER];
     char receiver[BUFFER];
     char subject[SUBJECT_LENGTH]; 
-    char* message;  
+    char message[BUFFER];  
 } mail_t; 
 
 static ssize_t my_read (int socketDescriptor, char *ptr); 

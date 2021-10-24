@@ -2,7 +2,6 @@
 
 void printUsage();
 
-
 int main(int argc, char** argv){
 
     u_int16_t port; 
@@ -11,7 +10,6 @@ int main(int argc, char** argv){
     struct sockaddr_in address; 
     int size; 
     int quit = 0; 
-
 
     // Create Socket
     if((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
@@ -79,7 +77,6 @@ int main(int argc, char** argv){
 
             if(strcmp(buffer, "SEND") == 0){
                 // Send Mail
-
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
                 // Send Sender
@@ -95,9 +92,7 @@ int main(int argc, char** argv){
                 newMail->sender[senderSize] = '\0'; 
 
                 if(writen(clientSocket, newMail->sender, sizeof(newMail->sender)-1) == -1){
-                    perror("SEND MAIL CONTENTS error"); 
-                } else {
-                    printf("sent %s\n", newMail->sender);
+                    perror("SEND SENDER error"); 
                 }
 
                 // Send Receiver
@@ -113,9 +108,7 @@ int main(int argc, char** argv){
                 newMail->receiver[receiverSize] = '\0'; 
 
                 if(writen(clientSocket, newMail->receiver, sizeof(newMail->receiver)-1) == -1){
-                    perror("SEND MAIL CONTENTS error"); 
-                } else {
-                    printf("sent %s\n", newMail->receiver);
+                    perror("SEND RECEIVER error"); 
                 }
 
                 // Send Subject
@@ -131,35 +124,31 @@ int main(int argc, char** argv){
                 newMail->subject[subjectSize] = '\0'; 
 
                 if(writen(clientSocket, newMail->subject, sizeof(newMail->subject)-1) == -1){
-                    perror("SEND MAIL CONTENTS error"); 
-                } else {
-                    printf("sent %s\n", newMail->subject);
-                }
+                    perror("SEND SUBJECT error"); 
+                } 
 
+                // Send Message
+                do{
+                    fgets(newMail->message, sizeof(newMail->message), stdin);
+                    int messageSize = (int)strlen(newMail->message); 
+                    
+                    if(newMail->message[messageSize-2] == '\r' && newMail->message[messageSize-1] == '\n'){
+                        newMail->message[messageSize] = 0; 
+                        messageSize -= 2; 
+                    }else if(newMail->message[messageSize-1] == '\n'){
+                        newMail->message[messageSize] = 0; 
+                        --messageSize;
+                    }
+                    newMail->message[messageSize] = '\0'; 
+                    
+                    if(writen(clientSocket, newMail->message, sizeof(newMail->message)-1) == -1){
+                        perror("SEND MESSAGE error"); 
+                    } 
+                }while(strcmp(newMail->message, ".") != 0);
 
-
-                // char payload[BUFFER]; 
-                // while(strcmp(fgets(payload, BUFFER-1, stdin),".\n") != 0){
-                //     int size = strlen(payload); 
-              
-                //     // Remove new-lines at the end
-                //     if(payload[size-2] == '\r' && payload[size-1] == '\n'){
-                //         size -= 2; 
-                //         payload[size] = 0; 
-                //     }else if(payload[size-1] == '\n'){
-                //         --size;
-                //         payload[size] = 0; 
-                //     }
-                //     payload[size] = '\0'; // Terminate String
-
-                //     if(writen(clientSocket, payload, BUFFER-1) == -1){
-                //         perror("SEND MAIL CONTENTS error"); 
-                //     }   
-                // }
-                
                 free(newMail); 
-
                 printf("MAIL SENT\n");
+
             } else if(strcmp(buffer, "LIST") == 0){
                 printf("LIST COMMAND SENT\n");
             } else if(strcmp(buffer, "READ") == 0){
@@ -168,6 +157,7 @@ int main(int argc, char** argv){
                 printf("DEL COMMAND SENT\n");
             } else if(strcmp(buffer, "QUIT") == 0){
                 printf("QUIT COMMAND SENT\n");
+                break; 
             } else {
                 printf("Unknown command\n"); 
             }
@@ -191,7 +181,6 @@ int main(int argc, char** argv){
             perror("SHUTDOWN error: clientSocket");
         }
         if(close(clientSocket) == -1){
-            printf("close clientSocket"); 
             perror("CLOSE error: clientSocket");
         }
         clientSocket = -1; 
