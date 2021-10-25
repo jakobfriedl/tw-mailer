@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
-#include <signal.h>
 
 #define BUFFER 1024
 #define SUBJECT_LENGTH 81

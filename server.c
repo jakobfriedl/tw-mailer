@@ -1,4 +1,10 @@
 #include "header.h"
+#include <signal.h>
+#include <sys/stat.h>
+
+struct stat st = {0}; 
+
+char mail_spool[PATH_MAX]; 
 
 int serverSocket = -1; 
 int newSocket = -1; 
@@ -17,6 +23,8 @@ int main(int argc, char** argv){
         printUsage();
         return EXIT_FAILURE; 
     }
+
+    strcpy(mail_spool, argv[2]); 
 
     // Signal Handler
     if(signal(SIGINT, signalHandler) == SIG_ERR){
@@ -149,6 +157,18 @@ void* clientCommunication(void* data){
                 printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
             }
 
+            // Create Directory for receiver if it doesnt already exist
+            char* directory = (char*)malloc(PATH_MAX);
+            char* fileName = (char*)malloc(PATH_MAX);; 
+            strcpy(directory, mail_spool); 
+            if(directory[strlen(directory)-1] != '/')
+                strcat(directory, "/"); 
+            strcat(directory, newMail->receiver); 
+
+            if(stat(directory, &st) == -1){
+                mkdir(directory, 644); 
+            }
+
             // Receive Receiver
             if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject)-1, 0) == -1){
                 perror("RECV SUBJECT error");
@@ -156,15 +176,40 @@ void* clientCommunication(void* data){
                 printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
             }
 
+            FILE* file = NULL; 
+
+            strcpy(fileName, newMail->subject); 
+            strcat(directory, "/"); 
+            strcat(directory, fileName); 
+
+            file = fopen(directory, "a");
+
+            if(file == NULL){
+                if(send(*currentClientSocket, "ERR", 3, 0) == -1){
+                    perror("Server failed to send answer"); 
+                    return NULL; 
+                }
+                continue; 
+            }
+
+            fputs(strcat(newMail->sender, "\n"), file); 
+            fputs(strcat(newMail->receiver, "\n"), file);
+            fputs(strcat(newMail->subject, "\n"), file); 
+
             // Receive Message
-            do{
+            while(strcmp(newMail->message, ".\n") != 0){
                 if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message)-1, 0) == -1){
                     perror("RECV Message error");
                 } else {
                     printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
+                    fputs(strcat(newMail->message, "\n"), file); 
                 }
-            }while(strcmp(newMail->message, ".") != 0);
+            }
 
+            fclose(file); 
+            
+            free(directory);
+            free(fileName); 
             free(newMail); 
             printf("MAIL RECEIVED\n");
         } else if(strcmp(buffer, "LIST") == 0){
