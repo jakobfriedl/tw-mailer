@@ -150,6 +150,25 @@ int main(int argc, char** argv){
                 printf("MAIL SENT\n");
 
             } else if(strcmp(buffer, "LIST") == 0){
+                
+                char user[BUFFER]; 
+
+                // Send Username
+                fgets(user, sizeof(user), stdin); 
+                int usernameSize = (int)strlen(user); 
+                if(user[usernameSize-2] == '\r' && user[usernameSize-1] == '\n'){
+                    user[usernameSize] = 0; 
+                    usernameSize -= 2; 
+                }else if(user[usernameSize-1] == '\n'){
+                    user[usernameSize] = 0; 
+                    --usernameSize;
+                }
+                user[usernameSize] = '\0'; 
+
+                if(writen(clientSocket, user, sizeof(user)-1) == -1){
+                    perror("SEND USER error"); 
+                }
+
                 printf("LIST COMMAND SENT\n");
             } else if(strcmp(buffer, "READ") == 0){
                 printf("READ COMMAND SENT\n");

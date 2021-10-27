@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "uuid.h": "c",
+        "kernel.h": "c",
+        "limits.h": "c"
+    }
+}

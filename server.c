@@ -1,6 +1,8 @@
 #include "header.h"
 #include <signal.h>
 #include <sys/stat.h>
+#include <uuid/uuid.h>
+#include <dirent.h>
 
 struct stat st = {0}; 
 
@@ -159,7 +161,6 @@ void* clientCommunication(void* data){
 
             // Create Directory for receiver if it doesnt already exist
             char* directory = (char*)malloc(PATH_MAX);
-            char* fileName = (char*)malloc(PATH_MAX);; 
             strcpy(directory, mail_spool); 
             if(directory[strlen(directory)-1] != '/')
                 strcat(directory, "/"); 
@@ -176,10 +177,14 @@ void* clientCommunication(void* data){
                 printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
             }
 
+            char* fileName = (char*)malloc(PATH_MAX);; 
             FILE* file = NULL; 
+            
+            uuid_t uuid; 
+            uuid_generate_random(uuid); 
+            uuid_unparse_lower(uuid, fileName); 
 
-            strcpy(fileName, newMail->subject); 
-            strcat(directory, "/"); 
+            strcat(directory, "/");  
             strcat(directory, fileName); 
 
             file = fopen(directory, "a");
@@ -197,14 +202,14 @@ void* clientCommunication(void* data){
             fputs(strcat(newMail->subject, "\n"), file); 
 
             // Receive Message
-            while(strcmp(newMail->message, ".\n") != 0){
+            do{
                 if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message)-1, 0) == -1){
                     perror("RECV Message error");
                 } else {
                     printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
                     fputs(strcat(newMail->message, "\n"), file); 
                 }
-            }
+            }while(strcmp(newMail->message, ".\n") != 0);
 
             fclose(file); 
             
@@ -213,8 +218,51 @@ void* clientCommunication(void* data){
             free(newMail); 
             printf("MAIL RECEIVED\n");
         } else if(strcmp(buffer, "LIST") == 0){
-            printf("LIST COMMAND RECEIVED\n");
-            
+            char user[BUFFER]; 
+
+            // Receive Username
+            if(recv(*currentClientSocket, user, sizeof(user)-1, 0) == -1){
+                perror("RECV SENDER error");
+            } else {
+                printf("Username: %s: %d\n", user, (int)strlen(user)); 
+            }
+
+            char* directory = (char*)malloc(PATH_MAX);
+            strcpy(directory, mail_spool); 
+            if(directory[strlen(directory)-1] != '/')
+                strcat(directory, "/"); 
+            strcat(directory, user); 
+ 
+            DIR *dir = opendir(directory); 
+            struct dirent *dirEntry; 
+            int mailCount = 0;
+            char* mailCountChar = malloc(sizeof(int));  
+            char mails[BUFFER][SUBJECT_LENGTH]; 
+
+            if(!dir){
+                // Directory does not exist / Cannot be opened
+                if(send(*currentClientSocket, "ERR", 3, 0) == -1){
+                    perror("SEND error");  
+                    return NULL; 
+                }
+            }
+
+            while((dirEntry = readdir(dir))){
+                if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
+                    strcpy(mails[mailCount], dirEntry->d_name); 
+                    mailCount++;  
+                }
+            }
+
+            printf("%d\n", mailCount); 
+            for(int i = 0; i < mailCount; i++){
+                printf("%s\n", mails[i]); 
+            }
+
+            closedir(dir); 
+            free(dirEntry);
+            free(mailCountChar);
+
         } else if(strcmp(buffer, "READ") == 0){
             printf("READ COMMAND RECEIVED\n");
         } else if(strcmp(buffer, "DEL") == 0){
@@ -224,7 +272,7 @@ void* clientCommunication(void* data){
             break; 
         } else {
             if(send(*currentClientSocket, "ERR", 3, 0) == -1){
-                perror("Server failed to send answer"); 
+                perror("SEND error"); 
                 return NULL; 
             }
             continue; 
