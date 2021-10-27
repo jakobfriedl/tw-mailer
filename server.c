@@ -146,14 +146,14 @@ void* clientCommunication(void* data){
             mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
             // Receive Sender
-            if(recv(*currentClientSocket, newMail->sender, sizeof(newMail->sender)-1, 0) == -1){
+            if(recv(*currentClientSocket, newMail->sender, sizeof(newMail->sender), 0) == -1){
                 perror("RECV SENDER error");
-            } else {
+            } else { 
                 printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
-            }
+            } 
 
             // Receive Receiver
-            if(recv(*currentClientSocket, newMail->receiver, sizeof(newMail->receiver)-1, 0) == -1){
+            if(recv(*currentClientSocket, newMail->receiver, sizeof(newMail->receiver), 0) == -1){
                 perror("RECV RECEIVER error");
             } else {
                 printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
@@ -167,11 +167,11 @@ void* clientCommunication(void* data){
             strcat(directory, newMail->receiver); 
 
             if(stat(directory, &st) == -1){
-                mkdir(directory, 644); 
+                mkdir(directory, 644);  
             }
 
             // Receive Receiver
-            if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject)-1, 0) == -1){
+            if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject), 0) == -1){
                 perror("RECV SUBJECT error");
             } else {
                 printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
@@ -203,7 +203,7 @@ void* clientCommunication(void* data){
 
             // Receive Message
             do{
-                if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message)-1, 0) == -1){
+                if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message), 0) == -1){
                     perror("RECV Message error");
                 } else {
                     printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 

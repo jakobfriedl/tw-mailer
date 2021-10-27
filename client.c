@@ -1,6 +1,7 @@
 #include "header.h"
 
 void printUsage();
+int sendData(int socket, char* buffer); 
 
 int main(int argc, char** argv){
 
@@ -65,7 +66,7 @@ int main(int argc, char** argv){
                 --size;
                 buffer[size] = 0; 
             }
-            quit = strcmp(buffer, "QUIT") == 0; 
+            quit = (strcmp(buffer, "QUIT") == 0); 
             
             if(size == 0) continue; 
             
@@ -80,68 +81,23 @@ int main(int argc, char** argv){
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
                 // Send Sender
-                fgets(newMail->sender, sizeof(newMail->sender), stdin); 
-                int senderSize = (int)strlen(newMail->sender); 
-                if(newMail->sender[senderSize-2] == '\r' && newMail->sender[senderSize-1] == '\n'){
-                    newMail->sender[senderSize] = 0; 
-                    senderSize -= 2; 
-                }else if(newMail->sender[senderSize-1] == '\n'){
-                    newMail->sender[senderSize] = 0; 
-                    --senderSize;
-                }
-                newMail->sender[senderSize] = '\0'; 
-
-                if(writen(clientSocket, newMail->sender, sizeof(newMail->sender)-1) == -1){
+                if(sendData(clientSocket, newMail->sender) == -1){
                     perror("SEND SENDER error"); 
-                }
+                } 
 
                 // Send Receiver
-                fgets(newMail->receiver, sizeof(newMail->receiver), stdin); 
-                int receiverSize = (int)strlen(newMail->receiver); 
-                if(newMail->receiver[receiverSize-2] == '\r' && newMail->receiver[receiverSize-1] == '\n'){
-                    newMail->receiver[receiverSize] = 0; 
-                    receiverSize -= 2; 
-                }else if(newMail->receiver[receiverSize-1] == '\n'){
-                    newMail->receiver[receiverSize] = 0; 
-                    --receiverSize;
-                }
-                newMail->receiver[receiverSize] = '\0'; 
-
-                if(writen(clientSocket, newMail->receiver, sizeof(newMail->receiver)-1) == -1){
+                if(sendData(clientSocket, newMail->receiver) == -1){
                     perror("SEND RECEIVER error"); 
-                }
+                } 
 
                 // Send Subject
-                fgets(newMail->subject, sizeof(newMail->subject), stdin); 
-                int subjectSize = (int)strlen(newMail->subject); 
-                if(newMail->subject[subjectSize-2] == '\r' && newMail->subject[subjectSize-1] == '\n'){
-                    newMail->subject[subjectSize] = 0; 
-                    subjectSize -= 2; 
-                }else if(newMail->subject[subjectSize-1] == '\n'){
-                    newMail->subject[subjectSize] = 0; 
-                    --subjectSize;
-                }
-                newMail->subject[subjectSize] = '\0'; 
-
-                if(writen(clientSocket, newMail->subject, sizeof(newMail->subject)-1) == -1){
+                if(sendData(clientSocket, newMail->subject) == -1){
                     perror("SEND SUBJECT error"); 
                 } 
 
                 // Send Message
                 do{
-                    fgets(newMail->message, sizeof(newMail->message), stdin);
-                    int messageSize = (int)strlen(newMail->message); 
-                    
-                    if(newMail->message[messageSize-2] == '\r' && newMail->message[messageSize-1] == '\n'){
-                        newMail->message[messageSize] = 0; 
-                        messageSize -= 2; 
-                    }else if(newMail->message[messageSize-1] == '\n'){
-                        newMail->message[messageSize] = 0; 
-                        --messageSize;
-                    }
-                    newMail->message[messageSize] = '\0'; 
-                    
-                    if(writen(clientSocket, newMail->message, sizeof(newMail->message)-1) == -1){
+                    if(sendData(clientSocket, newMail->message) == -1){
                         perror("SEND MESSAGE error"); 
                     } 
                 }while(strcmp(newMail->message, ".") != 0);
@@ -154,20 +110,9 @@ int main(int argc, char** argv){
                 char user[BUFFER]; 
 
                 // Send Username
-                fgets(user, sizeof(user), stdin); 
-                int usernameSize = (int)strlen(user); 
-                if(user[usernameSize-2] == '\r' && user[usernameSize-1] == '\n'){
-                    user[usernameSize] = 0; 
-                    usernameSize -= 2; 
-                }else if(user[usernameSize-1] == '\n'){
-                    user[usernameSize] = 0; 
-                    --usernameSize;
-                }
-                user[usernameSize] = '\0'; 
-
-                if(writen(clientSocket, user, sizeof(user)-1) == -1){
+                if(sendData(clientSocket, user) == -1){
                     perror("SEND USER error"); 
-                }
+                } 
 
                 printf("LIST COMMAND SENT\n");
             } else if(strcmp(buffer, "READ") == 0){

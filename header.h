@@ -91,3 +91,18 @@ ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
 
     return n;
 }
+
+int sendData(int socket, char* buffer){
+    fgets(buffer, sizeof(buffer), stdin); 
+    int size = (int)strlen(buffer); 
+    if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        size -= 2; 
+    }else if(buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        --size;
+    }
+    buffer[size] = '\0'; 
+
+    return writen(socket, buffer, sizeof(buffer)-1); 
+}
