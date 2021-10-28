@@ -16,6 +16,9 @@ void printUsage();
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
 
+void handleSendRequest(int socket); 
+void handleListRequest(int socket); 
+
 int main(int argc, char** argv){
     socklen_t addressLength;
     struct sockaddr_in address, clientAddress; 
@@ -118,7 +121,7 @@ void* clientCommunication(void* data){
         return NULL;
     }
 
-    do{
+    do{ 
         // Receive Command
         size = recv(*currentClientSocket, buffer, BUFFER-1, 0);
         if(size == -1){
@@ -140,136 +143,29 @@ void* clientCommunication(void* data){
             --size;            
         buffer[size] = '\0'; // Terminate String
 
-        if(strcmp(buffer, "SEND") == 0){
+        if(strcmp(buffer, "SEND") == 0){   
+
             printf("SEND COMMAND RECEIVED\n");
-            
-            mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+            handleSendRequest(*currentClientSocket); 
 
-            // Receive Sender
-            if(recv(*currentClientSocket, newMail->sender, sizeof(newMail->sender), 0) == -1){
-                perror("RECV SENDER error");
-            } else { 
-                printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
-            } 
-
-            // Receive Receiver
-            if(recv(*currentClientSocket, newMail->receiver, sizeof(newMail->receiver), 0) == -1){
-                perror("RECV RECEIVER error");
-            } else {
-                printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
-            }
-
-            // Create Directory for receiver if it doesnt already exist
-            char* directory = (char*)malloc(PATH_MAX);
-            strcpy(directory, mail_spool); 
-            if(directory[strlen(directory)-1] != '/')
-                strcat(directory, "/"); 
-            strcat(directory, newMail->receiver); 
-
-            if(stat(directory, &st) == -1){
-                mkdir(directory, 644);  
-            }
-
-            // Receive Receiver
-            if(recv(*currentClientSocket, newMail->subject, sizeof(newMail->subject), 0) == -1){
-                perror("RECV SUBJECT error");
-            } else {
-                printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
-            }
-
-            char* fileName = (char*)malloc(PATH_MAX);; 
-            FILE* file = NULL; 
-            
-            uuid_t uuid; 
-            uuid_generate_random(uuid); 
-            uuid_unparse_lower(uuid, fileName); 
-
-            strcat(directory, "/");  
-            strcat(directory, fileName); 
-
-            file = fopen(directory, "a");
-
-            if(file == NULL){
-                if(send(*currentClientSocket, "ERR", 3, 0) == -1){
-                    perror("Server failed to send answer"); 
-                    return NULL; 
-                }
-                continue; 
-            }
-
-            fputs(strcat(newMail->sender, "\n"), file); 
-            fputs(strcat(newMail->receiver, "\n"), file);
-            fputs(strcat(newMail->subject, "\n"), file); 
-
-            // Receive Message
-            do{
-                if(recv(*currentClientSocket, newMail->message, sizeof(newMail->message), 0) == -1){
-                    perror("RECV Message error");
-                } else {
-                    printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
-                    fputs(strcat(newMail->message, "\n"), file); 
-                }
-            }while(strcmp(newMail->message, ".\n") != 0);
-
-            fclose(file); 
-            
-            free(directory);
-            free(fileName); 
-            free(newMail); 
-            printf("MAIL RECEIVED\n");
         } else if(strcmp(buffer, "LIST") == 0){
-            char user[BUFFER]; 
 
-            // Receive Username
-            if(recv(*currentClientSocket, user, sizeof(user)-1, 0) == -1){
-                perror("RECV SENDER error");
-            } else {
-                printf("Username: %s: %d\n", user, (int)strlen(user)); 
-            }
-
-            char* directory = (char*)malloc(PATH_MAX);
-            strcpy(directory, mail_spool); 
-            if(directory[strlen(directory)-1] != '/')
-                strcat(directory, "/"); 
-            strcat(directory, user); 
- 
-            DIR *dir = opendir(directory); 
-            struct dirent *dirEntry; 
-            int mailCount = 0;
-            char* mailCountChar = malloc(sizeof(int));  
-            char mails[BUFFER][SUBJECT_LENGTH]; 
-
-            if(!dir){
-                // Directory does not exist / Cannot be opened
-                if(send(*currentClientSocket, "ERR", 3, 0) == -1){
-                    perror("SEND error");  
-                    return NULL; 
-                }
-            }
-
-            while((dirEntry = readdir(dir))){
-                if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-                    strcpy(mails[mailCount], dirEntry->d_name); 
-                    mailCount++;  
-                }
-            }
-
-            printf("%d\n", mailCount); 
-            for(int i = 0; i < mailCount; i++){
-                printf("%s\n", mails[i]); 
-            }
-
-            closedir(dir); 
-            free(dirEntry);
-            free(mailCountChar);
+            printf("LIST COMMAND RECEIVED\n");
+            handleListRequest(*currentClientSocket); 
 
         } else if(strcmp(buffer, "READ") == 0){
+
             printf("READ COMMAND RECEIVED\n");
+
         } else if(strcmp(buffer, "DEL") == 0){
+
             printf("DEL COMMAND RECEIVED\n");
+
         } else if(strcmp(buffer, "QUIT") == 0){
+
             printf("QUIT COMMAND RECEIVED\n");
             break; 
+            
         } else {
             if(send(*currentClientSocket, "ERR", 3, 0) == -1){
                 perror("SEND error"); 
@@ -323,4 +219,165 @@ void signalHandler(int signal){
             serverSocket = -1; 
         }   
     }
+}
+
+///////////////////////////////////////////
+//! SEND - FUNCTIONALITY
+///////////////////////////////////////////
+void handleSendRequest(int socket){
+    mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+
+    // Receive Sender
+    if(recv(socket, newMail->sender, BUFFER, 0) == -1){
+        perror("RECV SENDER error");
+        return; 
+    }
+    printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
+        
+
+    // Receive Receiver
+    if(recv(socket, newMail->receiver, BUFFER, 0) == -1){
+        perror("RECV RECEIVER error");
+        return; 
+    }
+    printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
+    
+
+    // Create Directory for receiver if it doesnt already exist
+    char* directory = (char*)malloc(PATH_MAX);
+    strcpy(directory, mail_spool); 
+    if(directory[strlen(directory)-1] != '/')
+        strcat(directory, "/"); 
+    strcat(directory, newMail->receiver); 
+
+    if(stat(directory, &st) == -1){
+        mkdir(directory, 644);  
+    }
+
+    // Receive Receiver
+    if(recv(socket, newMail->subject, BUFFER, 0) == -1){
+        perror("RECV SUBJECT error");
+        return; 
+    }
+    printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
+    
+
+    char* fileName = (char*)malloc(PATH_MAX);; 
+    FILE* file = NULL; 
+    
+    uuid_t uuid; 
+    uuid_generate_random(uuid); 
+    uuid_unparse_lower(uuid, fileName); 
+
+    strcat(directory, "/");  
+    strcat(directory, fileName); 
+
+    file = fopen(directory, "a"); // Open file in "append"-mode
+
+    if(file == NULL){
+        if(send(socket, "ERR", 3, 0) == -1){
+            perror("File not found error");  
+        }
+        return; 
+    }
+
+    fputs(strcat(newMail->sender, "\n"), file); 
+    fputs(strcat(newMail->receiver, "\n"), file);
+    fputs(strcat(newMail->subject, "\n"), file); 
+
+    // Receive Message
+    do{
+        if(recv(socket, newMail->message, BUFFER, 0) == -1){
+            perror("RECV Message error");
+            return; 
+        }
+        printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
+        fputs(strcat(newMail->message, "\n"), file); 
+    }while(strcmp(newMail->message, ".\n") != 0);
+
+    fclose(file); 
+    
+    free(directory);
+    free(fileName); 
+    free(newMail); 
+    printf("MAIL RECEIVED\n");
+}
+
+///////////////////////////////////////////
+//! LIST - FUNCTIONALITY
+///////////////////////////////////////////
+void handleListRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+
+    // Receive Username
+    if(recv(socket, user, BUFFER, 0) == -1){
+        perror("RECV SENDER error");
+        return; 
+    }
+    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+    
+    char* directory = (char*)malloc(PATH_MAX);
+    char* pathToFile = (char*)malloc(PATH_MAX);
+    strcpy(directory, mail_spool); 
+    if(directory[strlen(directory)-1] != '/')
+        strcat(directory, "/"); 
+    strcat(directory, user); 
+
+    DIR *dir = opendir(directory); 
+    struct dirent *dirEntry; 
+    int mailCount = 0; 
+    char* mailCountChar = malloc(sizeof(int));  
+    char mails[BUFFER][BUFFER]; 
+
+    if(!dir){
+        // User does not exist
+        int convertedMailCount = htonl(mailCount); // Convert from host to network 
+        if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){
+            perror("SEND error"); 
+        }
+        return; 
+    }
+
+    while((dirEntry = readdir(dir))){
+        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
+            strcpy(pathToFile, directory); 
+            strcat(pathToFile, "/"); 
+            strcat(pathToFile, dirEntry->d_name); 
+
+            FILE* file = fopen(pathToFile, "r"); // Open file in "read"-mode
+            int count = 0;   
+            
+            if(file != NULL){
+                char line[BUFFER]; 
+                while(fgets(line, sizeof(line), file) != NULL){
+                    if(count == 2){ // Get subject from mail
+                        line[strlen(line)-1] = '\0'; // Remove \n and replace it with \0                               
+                        strcpy(mails[mailCount], line);
+                        mailCount++;  
+                    }
+                    count++; 
+                }
+                fclose(file); 
+            }
+        }
+    }
+
+
+    int convertedMailCount = htonl(mailCount); // Convert from host to network 
+    if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){
+        perror("SEND error"); 
+    }
+    
+    for(int i = 0; i < mailCount; i++){
+        if(writen(socket, mails[i], BUFFER) == -1){
+            perror("SEND error"); 
+        }
+    }
+
+    free(user); 
+    closedir(dir); 
+    free(dirEntry);
+    free(directory); 
+    free(pathToFile); 
+    free(mailCountChar);
 }

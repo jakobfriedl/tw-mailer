@@ -1,7 +1,7 @@
 #include "header.h"
 
 void printUsage();
-int sendData(int socket, char* buffer); 
+int sendData(int socket, char* buffer, int bytesToSend); 
 
 int main(int argc, char** argv){
 
@@ -66,6 +66,7 @@ int main(int argc, char** argv){
                 --size;
                 buffer[size] = 0; 
             }
+            buffer[size] = '\0'; 
             quit = (strcmp(buffer, "QUIT") == 0); 
             
             if(size == 0) continue; 
@@ -81,23 +82,23 @@ int main(int argc, char** argv){
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
                 // Send Sender
-                if(sendData(clientSocket, newMail->sender) == -1){
+                if(sendData(clientSocket, newMail->sender, BUFFER) == -1){
                     perror("SEND SENDER error"); 
                 } 
-
+                
                 // Send Receiver
-                if(sendData(clientSocket, newMail->receiver) == -1){
+                if(sendData(clientSocket, newMail->receiver, BUFFER) == -1){
                     perror("SEND RECEIVER error"); 
                 } 
 
                 // Send Subject
-                if(sendData(clientSocket, newMail->subject) == -1){
+                if(sendData(clientSocket, newMail->subject, BUFFER) == -1){
                     perror("SEND SUBJECT error"); 
                 } 
 
                 // Send Message
                 do{
-                    if(sendData(clientSocket, newMail->message) == -1){
+                    if(sendData(clientSocket, newMail->message, BUFFER) == -1){
                         perror("SEND MESSAGE error"); 
                     } 
                 }while(strcmp(newMail->message, ".") != 0);
@@ -107,20 +108,33 @@ int main(int argc, char** argv){
 
             } else if(strcmp(buffer, "LIST") == 0){
                 
-                char user[BUFFER]; 
+                char* user = (char*)malloc(BUFFER * sizeof(char)); 
 
                 // Send Username
-                if(sendData(clientSocket, user) == -1){
+                if(sendData(clientSocket, user, BUFFER) == -1){
                     perror("SEND USER error"); 
                 } 
+                
+                int receivedMailCount; 
+                if(read(clientSocket, &receivedMailCount, sizeof(receivedMailCount)) == -1){
+                    perror("RECV error"); 
+                }
+                int mailCount = ntohl(receivedMailCount); // Convert from network to host
+                char mails[BUFFER][BUFFER]; 
 
-                printf("LIST COMMAND SENT\n");
+                printf("Number of Messages: %d\n", mailCount); 
+                for(int i = 0; i < mailCount; i++){
+                    if(recv(clientSocket, mails[i], BUFFER, 0) == -1){
+                        perror("RECV error");
+                    }
+                    printf("- %s\n", mails[i]); 
+                }
+
             } else if(strcmp(buffer, "READ") == 0){
                 printf("READ COMMAND SENT\n");
             } else if(strcmp(buffer, "DEL") == 0){
-                printf("DEL COMMAND SENT\n");
+                printf("DEL COMMAND SENT\n"); 
             } else if(strcmp(buffer, "QUIT") == 0){
-                printf("QUIT COMMAND SENT\n");
                 break; 
             } else {
                 printf("Unknown command\n"); 
@@ -146,7 +160,7 @@ int main(int argc, char** argv){
         }
         if(close(clientSocket) == -1){
             perror("CLOSE error: clientSocket");
-        }
+        } 
         clientSocket = -1; 
     }
 

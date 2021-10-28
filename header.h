@@ -10,8 +10,7 @@
 #include <limits.h>
 
 #define BUFFER 1024
-#define SUBJECT_LENGTH 81
-#define USERNAME_LENGTH 9 // 8 + '\0
+#define SUBJECT_LENGTH 80
 #ifndef SO_REUSEPORT
     #define SO_REUSEPORT 15  
 #endif
@@ -19,8 +18,8 @@
 typedef struct mail{
     char sender[BUFFER];
     char receiver[BUFFER];
-    char subject[SUBJECT_LENGTH]; 
-    char message[BUFFER];  
+    char subject[BUFFER]; 
+    char message[BUFFER];   
 } mail_t; 
 
 static ssize_t my_read (int socketDescriptor, char *ptr); 
@@ -88,12 +87,11 @@ ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
         bytesLeft -= bytesWritten;
         ptr += bytesWritten;
     }
-
     return n;
 }
 
-int sendData(int socket, char* buffer){
-    fgets(buffer, sizeof(buffer), stdin); 
+int sendData(int socket, char* buffer, int bytesToSend){
+    fgets(buffer, bytesToSend-1, stdin); 
     int size = (int)strlen(buffer); 
     if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
         buffer[size] = 0; 
@@ -102,7 +100,7 @@ int sendData(int socket, char* buffer){
         buffer[size] = 0; 
         --size;
     }
-    buffer[size] = '\0'; 
-
-    return writen(socket, buffer, sizeof(buffer)-1); 
+    buffer[size] = '\0';
+ 
+    return writen(socket, buffer, bytesToSend-1);  
 }
