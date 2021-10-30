@@ -11,6 +11,7 @@
 
 #define BUFFER 1024
 #define SUBJECT_LENGTH 80
+#define USERNAME_LENGTH 8
 #ifndef SO_REUSEPORT
     #define SO_REUSEPORT 15  
 #endif

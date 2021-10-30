@@ -238,7 +238,7 @@ int handleSendRequest(int socket){
         return -1; 
     }
     newMail->sender[size] = '\0'; 
-    if(strlen(newMail->sender) > 8){
+    if(strlen(newMail->sender) > USERNAME_LENGTH){
         return -1; 
     }
 
@@ -251,12 +251,11 @@ int handleSendRequest(int socket){
         return -1; 
     }
     newMail->receiver[size] = '\0'; 
-    if(strlen(newMail->receiver) > 8){
+    if(strlen(newMail->receiver) > USERNAME_LENGTH){
         return -1; 
     }
 
     printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
-    
 
     // Create Directory for receiver if it doesnt already exist
     char* directory = (char*)malloc(PATH_MAX);
@@ -269,35 +268,53 @@ int handleSendRequest(int socket){
         mkdir(directory, 644);  
     }
 
-    // Receive Receiver
+    // Receive Subject
     if((size = recv(socket, newMail->subject, BUFFER, 0)) == -1){
         perror("RECV SUBJECT error");
         return -1; 
     }
     newMail->subject[size] = '\0'; 
-    if(strlen(newMail->subject) > 80){
+    if(strlen(newMail->subject) > SUBJECT_LENGTH){
         return -1; 
     }
 
     printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
     
-
     char* fileName = (char*)malloc(PATH_MAX);; 
     FILE* file = NULL; 
     
+    // Find out the correct Mail-Number to access the mail later
+    DIR* dir = opendir(directory); 
+    struct dirent* dirEntry; 
+    int lastNumberInt = 0; 
+    char* completeFileName = (char*)malloc(BUFFER * sizeof(char)); 
+
+    if(!dir){
+        return -1; 
+    }
+    while((dirEntry = readdir(dir))){
+        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
+            lastNumberInt = atoi(strtok(dirEntry->d_name, "_")); 
+        }
+    }
+    closedir(dir);
+    free(dirEntry); 
+
+    // Increase ID of latest mail by 1 
+    lastNumberInt++; 
+
+    // Generate unique filename
     uuid_t uuid; 
     uuid_generate_random(uuid); 
     uuid_unparse_lower(uuid, fileName); 
+    
+    // Construct File Path: mail-spool/username/number_uuid
+    sprintf(completeFileName, "%s/%d_%s", directory, lastNumberInt, fileName);
 
-    strcat(directory, "/");  
-    strcat(directory, fileName); 
-
-    file = fopen(directory, "a"); // Open file in "append"-mode
+    // Open file in "append"-mode   
+    file = fopen(completeFileName, "a"); 
 
     if(file == NULL){
-        if(send(socket, "ERR", 3, 0) == -1){
-            perror("File not found error");  
-        }
         return -1; 
     }
 
@@ -316,9 +333,10 @@ int handleSendRequest(int socket){
     }while(strcmp(newMail->message, ".\n") != 0);
 
     fclose(file); 
-    
+
     free(directory);
     free(fileName); 
+    free(completeFileName); 
     free(newMail); 
     printf("MAIL RECEIVED\n");
 
@@ -362,22 +380,22 @@ void handleListRequest(int socket){
         }
         return; 
     }
-
+    
     while((dirEntry = readdir(dir))){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-            strcpy(pathToFile, directory); 
-            strcat(pathToFile, "/"); 
-            strcat(pathToFile, dirEntry->d_name); 
+            sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
 
-            FILE* file = fopen(pathToFile, "r"); // Open file in "read"-mode
+            // Open file in "read"-mode
+            FILE* file = fopen(pathToFile, "r"); 
             int count = 0;   
             
             if(file != NULL){
                 char line[BUFFER]; 
                 while(fgets(line, sizeof(line), file) != NULL){
                     if(count == 2){ // Get subject from mail
-                        line[strlen(line)-1] = '\0'; // Remove \n and replace it with \0                               
-                        strcpy(mails[mailCount], line);
+                        line[strlen(line)-1] = '\0'; // Remove \n and replace it with \0    
+                        // Construct Output string shown to client, contains mail-number and subject                        
+                        sprintf(mails[mailCount], "%s - %s", strtok(dirEntry->d_name, "_"), line); 
                         mailCount++;  
                     }
                     count++; 
@@ -386,7 +404,6 @@ void handleListRequest(int socket){
             }
         }
     }
-
 
     int convertedMailCount = htonl(mailCount); // Convert from host to network 
     if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){

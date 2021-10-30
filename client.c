@@ -86,7 +86,7 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, newMail->sender, BUFFER) == -1){
                     perror("SEND SENDER error"); 
                 } 
-                if(strlen(newMail->sender) > 8){
+                if(strlen(newMail->sender) > USERNAME_LENGTH){
                     receiveFeedback(clientSocket);
                     continue;  
                 }
@@ -95,7 +95,7 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, newMail->receiver, BUFFER) == -1){
                     perror("SEND RECEIVER error"); 
                 } 
-                if(strlen(newMail->receiver) > 8){
+                if(strlen(newMail->receiver) > USERNAME_LENGTH){
                     receiveFeedback(clientSocket);
                     continue;  
                 }
@@ -104,7 +104,7 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, newMail->subject, BUFFER) == -1){
                     perror("SEND SUBJECT error"); 
                 } 
-                if(strlen(newMail->subject) > 80){
+                if(strlen(newMail->subject) > SUBJECT_LENGTH){
                     receiveFeedback(clientSocket);
                     continue;  
                 }
@@ -140,7 +140,7 @@ int main(int argc, char** argv){
                     if(recv(clientSocket, mails[i], BUFFER, 0) == -1){
                         perror("RECV error");
                     }
-                    printf("- %s\n", mails[i]); 
+                    printf(" %s\n", mails[i]); 
                 }
 
                 receiveFeedback(clientSocket); 
