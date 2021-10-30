@@ -15,8 +15,9 @@ int abortRequested = 0;
 void printUsage(); 
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
+void sendFeedback(int socket, char* feedback); 
 
-void handleSendRequest(int socket); 
+int handleSendRequest(int socket); 
 void handleListRequest(int socket); 
 
 int main(int argc, char** argv){
@@ -146,12 +147,16 @@ void* clientCommunication(void* data){
         if(strcmp(buffer, "SEND") == 0){   
 
             printf("SEND COMMAND RECEIVED\n");
-            handleSendRequest(*currentClientSocket); 
-
+            if(handleSendRequest(*currentClientSocket) == -1){
+                sendFeedback(*currentClientSocket, "ERR"); 
+            }else{
+                sendFeedback(*currentClientSocket, "OK"); 
+            }
         } else if(strcmp(buffer, "LIST") == 0){
 
             printf("LIST COMMAND RECEIVED\n");
-            handleListRequest(*currentClientSocket); 
+            handleListRequest(*currentClientSocket);
+            sendFeedback(*currentClientSocket, "OK");  
 
         } else if(strcmp(buffer, "READ") == 0){
 
@@ -167,18 +172,9 @@ void* clientCommunication(void* data){
             break; 
             
         } else {
-            if(send(*currentClientSocket, "ERR", 3, 0) == -1){
-                perror("SEND error"); 
-                return NULL; 
-            }
+            sendFeedback(*currentClientSocket, "ERR\0"); 
             continue; 
         }
-
-        if(send(*currentClientSocket, "OK", 3, 0) == -1){
-            perror("Server failed to send answer"); 
-            return NULL; 
-        }
-        
 
     }while(strcmp(buffer, "QUIT") != 0 && !abortRequested); 
 
@@ -221,25 +217,44 @@ void signalHandler(int signal){
     }
 }
 
+void sendFeedback(int socket, char* feedback){
+    if(send(socket, feedback, sizeof(feedback), 0) == -1){
+        perror("Server failed to send answer"); 
+        return; 
+    }
+}
+
 ///////////////////////////////////////////
 //! SEND - FUNCTIONALITY
 ///////////////////////////////////////////
-void handleSendRequest(int socket){
+int handleSendRequest(int socket){
+
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+    int size = 0; 
 
     // Receive Sender
-    if(recv(socket, newMail->sender, BUFFER, 0) == -1){
+    if((size = recv(socket, newMail->sender, BUFFER, 0)) == -1){
         perror("RECV SENDER error");
-        return; 
+        return -1; 
     }
+    newMail->sender[size] = '\0'; 
+    if(strlen(newMail->sender) > 8){
+        return -1; 
+    }
+
     printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
         
 
     // Receive Receiver
-    if(recv(socket, newMail->receiver, BUFFER, 0) == -1){
+    if((size = recv(socket, newMail->receiver, BUFFER, 0)) == -1){
         perror("RECV RECEIVER error");
-        return; 
+        return -1; 
     }
+    newMail->receiver[size] = '\0'; 
+    if(strlen(newMail->receiver) > 8){
+        return -1; 
+    }
+
     printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
     
 
@@ -255,10 +270,15 @@ void handleSendRequest(int socket){
     }
 
     // Receive Receiver
-    if(recv(socket, newMail->subject, BUFFER, 0) == -1){
+    if((size = recv(socket, newMail->subject, BUFFER, 0)) == -1){
         perror("RECV SUBJECT error");
-        return; 
+        return -1; 
     }
+    newMail->subject[size] = '\0'; 
+    if(strlen(newMail->subject) > 80){
+        return -1; 
+    }
+
     printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
     
 
@@ -278,7 +298,7 @@ void handleSendRequest(int socket){
         if(send(socket, "ERR", 3, 0) == -1){
             perror("File not found error");  
         }
-        return; 
+        return -1; 
     }
 
     fputs(strcat(newMail->sender, "\n"), file); 
@@ -289,7 +309,7 @@ void handleSendRequest(int socket){
     do{
         if(recv(socket, newMail->message, BUFFER, 0) == -1){
             perror("RECV Message error");
-            return; 
+            return -1; 
         }
         printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
         fputs(strcat(newMail->message, "\n"), file); 
@@ -301,6 +321,8 @@ void handleSendRequest(int socket){
     free(fileName); 
     free(newMail); 
     printf("MAIL RECEIVED\n");
+
+    return 0; 
 }
 
 ///////////////////////////////////////////
@@ -308,12 +330,15 @@ void handleSendRequest(int socket){
 ///////////////////////////////////////////
 void handleListRequest(int socket){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    int size = 0; 
 
     // Receive Username
-    if(recv(socket, user, BUFFER, 0) == -1){
+    if((size = recv(socket, user, BUFFER, 0)) == -1){
         perror("RECV SENDER error");
         return; 
     }
+    user[size] = '\0'; 
+
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
     
     char* directory = (char*)malloc(PATH_MAX);

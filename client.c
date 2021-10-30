@@ -2,6 +2,7 @@
 
 void printUsage();
 int sendData(int socket, char* buffer, int bytesToSend); 
+void receiveFeedback(int socket); 
 
 int main(int argc, char** argv){
 
@@ -85,16 +86,28 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, newMail->sender, BUFFER) == -1){
                     perror("SEND SENDER error"); 
                 } 
+                if(strlen(newMail->sender) > 8){
+                    receiveFeedback(clientSocket);
+                    continue;  
+                }
                 
                 // Send Receiver
                 if(sendData(clientSocket, newMail->receiver, BUFFER) == -1){
                     perror("SEND RECEIVER error"); 
                 } 
+                if(strlen(newMail->receiver) > 8){
+                    receiveFeedback(clientSocket);
+                    continue;  
+                }
 
                 // Send Subject
                 if(sendData(clientSocket, newMail->subject, BUFFER) == -1){
                     perror("SEND SUBJECT error"); 
                 } 
+                if(strlen(newMail->subject) > 80){
+                    receiveFeedback(clientSocket);
+                    continue;  
+                }
 
                 // Send Message
                 do{
@@ -104,7 +117,7 @@ int main(int argc, char** argv){
                 }while(strcmp(newMail->message, ".") != 0);
 
                 free(newMail); 
-                printf("MAIL SENT\n");
+                receiveFeedback(clientSocket);
 
             } else if(strcmp(buffer, "LIST") == 0){
                 
@@ -130,6 +143,8 @@ int main(int argc, char** argv){
                     printf("- %s\n", mails[i]); 
                 }
 
+                receiveFeedback(clientSocket); 
+
             } else if(strcmp(buffer, "READ") == 0){
                 printf("READ COMMAND SENT\n");
             } else if(strcmp(buffer, "DEL") == 0){
@@ -138,17 +153,6 @@ int main(int argc, char** argv){
                 break; 
             } else {
                 printf("Unknown command\n"); 
-            }
-
-            // Receive Feedback
-            size = recv(clientSocket, buffer, BUFFER-1, 0); 
-            if(size == -1)
-                perror("RECV error"); 
-            else if (size == 0)
-                fprintf(stdout, "Server closed remote socket\n"); 
-            else{
-                buffer[size] = '\0'; // Terminate String
-                fprintf(stdout, "%s\n", buffer); 
             }
         }
     }while(!quit); 
@@ -169,4 +173,18 @@ int main(int argc, char** argv){
 
 void printUsage(){
     fprintf(stdout, "./tw-client <ip> <port>\n"); 
+}
+
+void receiveFeedback(int socket){
+    // Receive Feedback
+    char buffer[BUFFER]; 
+    int size = recv(socket, buffer, BUFFER-1, 0); 
+    if(size == -1)
+        perror("RECV error"); 
+    else if (size == 0)
+        fprintf(stdout, "Server closed remote socket\n"); 
+    else{
+        buffer[size] = '\0'; // Terminate String
+        fprintf(stdout, "%s\n", buffer); 
+    }
 }

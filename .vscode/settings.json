@@ -3,6 +3,10 @@
         "uuid.h": "c",
         "kernel.h": "c",
         "limits.h": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "utility": "c"
     }
 }
