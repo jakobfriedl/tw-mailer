@@ -8,10 +8,12 @@
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
+#include <regex.h>
 
 #define BUFFER 1024
 #define SUBJECT_LENGTH 80
-#define USERNAME_LENGTH 8
+#define MAX_USERNAME_LENGTH 8
+#define MIN_USERNAME_LENGTH 1
 #ifndef SO_REUSEPORT
     #define SO_REUSEPORT 15  
 #endif
@@ -23,52 +25,8 @@ typedef struct mail{
     char message[BUFFER];   
 } mail_t; 
 
-static ssize_t my_read (int socketDescriptor, char *ptr); 
-ssize_t readline(int socketDescriptor, void* buffer, size_t bufferLength);
 ssize_t writen(int socketDescriptor, const void *buffer, size_t n); 
-
-
-static ssize_t my_read(int socketDescriptor, char *ptr) { 
-    static int read_cnt = 0; 
-    static char *read_ptr; 
-    static char buffer[BUFFER]; 
-    
-    if(read_cnt <= 0){ 
-        again: 
-            if((read_cnt = read(socketDescriptor, buffer, sizeof(buffer))) < 0){ 
-                if (errno == EINTR) 
-                    goto again; 
-            return -1; 
-            } else if (read_cnt == 0) 
-                return 0; 
-            read_ptr = buffer; 
-    } 
-    read_cnt--; 
-    *ptr = *read_ptr++; 
-    return 1; 
-}
-
-ssize_t readline(int socketDescriptor, void* buffer, size_t bufferLength){
-    ssize_t n, bytesRead; 
-    char c, *ptr; 
-    ptr = buffer; 
-    
-    for (n = 1 ; n < bufferLength ; n++) { 
-        if((bytesRead = my_read(socketDescriptor, &c)) == 1 ){ 
-            *ptr++ = c; 
-            if (c == '\n') 
-                break; // newline is stored 
-        } else if (bytesRead == 0) { 
-            if (n == 1) 
-                return 0; // EOF, no data read  
-            else 
-                break; // EOF, some data was read 
-        } else 
-            return -1; // error, errno set by read() in my_read()    
-    } 
-    *ptr = 0; // null terminate 
-    return n;
-}
+int validateUserName(char* username); 
 
 ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
     size_t bytesLeft;
@@ -104,4 +62,23 @@ int sendData(int socket, char* buffer, int bytesToSend){
     buffer[size] = '\0';
  
     return writen(socket, buffer, bytesToSend-1);  
+}
+
+int validateUserName(char* username){
+    // Check if username is max. 8 characters long
+    if(strlen(username) > MAX_USERNAME_LENGTH || strlen(username) < MIN_USERNAME_LENGTH){
+        return 0; 
+    }
+
+    // Check if username only contains letters and numbers
+    for(int i = 0; i <= strlen(username)-1; i++){
+        if((username[i] >= 'a' && username[i] <= 'z')
+        || (username[i] >= 'A' && username[i] <= 'Z')
+        || (username[i] >= '0' && username[i] <= '9')){
+            // Skip character
+        }else{
+            return 0; 
+        }
+    }
+    return 1; 
 }

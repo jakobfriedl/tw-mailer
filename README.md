@@ -9,9 +9,9 @@
 ```
 *start server (use sudo if using ports below 1024):*
 ```bash
-    $./tw-server <port> <mail-spool-directory>
+    $./twmailer-server <port> <mail-spool-directory>
 ```
 *start client:*
 ```bash
-    $./tw-client <ip> <port>
+    $./twmailer-client <ip> <port>
 ```

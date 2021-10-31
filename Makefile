@@ -1,15 +1,15 @@
 # Makefile for TW-Mailer
 
 COMPILER = gcc
-CFLAGS = -g -Wall -pthread -luuid 
+CFLAGS = -g -Wall -pthread -luuid
 
-all: tw-server tw-client
+all: twmailer-server twmailer-client
 
 clean: 
-	rm -f tw-client tw-server
+	rm -f twmailer-client twmailer-server
 
-tw-server: server.c 
-	${COMPILER}  -o tw-server server.c ${CFLAGS}
+twmailer-server: server.c 
+	${COMPILER}  -o twmailer-server server.c ${CFLAGS}
 
-tw-client: client.c 
-	${COMPILER}  -o tw-client client.c ${CFLAGS}
+twmailer-client: client.c 
+	${COMPILER}  -o twmailer-client client.c ${CFLAGS}

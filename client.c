@@ -2,7 +2,7 @@
 
 void printUsage();
 int sendData(int socket, char* buffer, int bytesToSend); 
-void receiveFeedback(int socket); 
+int receiveFeedback(int socket); 
 
 int main(int argc, char** argv){
 
@@ -68,9 +68,9 @@ int main(int argc, char** argv){
                 buffer[size] = 0; 
             }
             buffer[size] = '\0'; 
-            quit = (strcmp(buffer, "QUIT") == 0); 
+            quit = (strcmp(buffer, "QUIT") == 0);  
             
-            if(size == 0) continue; 
+            if(size == 0) continue;  
             
             // Send Command
             if((send(clientSocket, buffer, size, 0) == -1)){
@@ -78,24 +78,24 @@ int main(int argc, char** argv){
                 break; 
             } 
 
-            if(strcmp(buffer, "SEND") == 0){
-                // Send Mail
+            if(strcmp(buffer, "SEND") == 0){ 
+
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
                 // Send Sender
                 if(sendData(clientSocket, newMail->sender, BUFFER) == -1){
                     perror("SEND SENDER error"); 
                 } 
-                if(strlen(newMail->sender) > USERNAME_LENGTH){
+                if(!validateUserName(newMail->sender)){ 
                     receiveFeedback(clientSocket);
-                    continue;  
-                }
+                    continue; 
+                } 
                 
                 // Send Receiver
                 if(sendData(clientSocket, newMail->receiver, BUFFER) == -1){
                     perror("SEND RECEIVER error"); 
                 } 
-                if(strlen(newMail->receiver) > USERNAME_LENGTH){
+                if(!validateUserName(newMail->receiver)){
                     receiveFeedback(clientSocket);
                     continue;  
                 }
@@ -125,7 +125,7 @@ int main(int argc, char** argv){
 
                 // Send Username
                 if(sendData(clientSocket, user, BUFFER) == -1){
-                    perror("SEND USER error"); 
+                    perror("SEND USER error");  
                 } 
                 
                 int receivedMailCount; 
@@ -136,19 +136,70 @@ int main(int argc, char** argv){
                 char mails[BUFFER][BUFFER]; 
 
                 printf("Number of Messages: %d\n", mailCount); 
+                int size = 0; 
                 for(int i = 0; i < mailCount; i++){
-                    if(recv(clientSocket, mails[i], BUFFER, 0) == -1){
+                    if((size = recv(clientSocket, mails[i], BUFFER, 0)) == -1){
                         perror("RECV error");
                     }
-                    printf(" %s\n", mails[i]); 
+                    mails[i][size] = '\0'; 
+                    printf(" %s\n", mails[i]);
                 }
+
+                free(user); 
+
+            } else if(strcmp(buffer, "READ") == 0){
+
+                char* user = (char*)malloc(BUFFER * sizeof(char)); 
+                char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+
+                // Send Username
+                if(sendData(clientSocket, user, BUFFER) == -1){
+                    perror("SEND USER error"); 
+                } 
+
+                // Send MailNumber
+                if(sendData(clientSocket, mailNumber, BUFFER) == -1){
+                    perror("SEND MAILNR error"); 
+                } 
+
+                // Check if Server answers with OK or ERR
+                if(receiveFeedback(clientSocket)){
+                    char line[BUFFER];
+                    int size = 0; 
+
+                    // Receive Mail Contents
+                    do{
+                        if((size = recv(clientSocket, line, BUFFER, 0)) == -1){
+                            perror("RECV error"); 
+                        }
+                        line[size] = '\0'; 
+                        printf("%s\n", line); 
+                    }while(strcmp(line, "."));
+                }
+
+                free(user); 
+                free(mailNumber); 
+
+            } else if(strcmp(buffer, "DEL") == 0){
+
+                char* user = (char*)malloc(BUFFER * sizeof(char)); 
+                char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+
+                // Send Username
+                if(sendData(clientSocket, user, BUFFER) == -1){
+                    perror("SEND USER error"); 
+                } 
+
+                // Send MailNumber
+                if(sendData(clientSocket, mailNumber, BUFFER) == -1){
+                    perror("SEND MAILNR error"); 
+                } 
 
                 receiveFeedback(clientSocket); 
 
-            } else if(strcmp(buffer, "READ") == 0){
-                printf("READ COMMAND SENT\n");
-            } else if(strcmp(buffer, "DEL") == 0){
-                printf("DEL COMMAND SENT\n"); 
+                free(user); 
+                free(mailNumber); 
+
             } else if(strcmp(buffer, "QUIT") == 0){
                 break; 
             } else {
@@ -175,7 +226,7 @@ void printUsage(){
     fprintf(stdout, "./tw-client <ip> <port>\n"); 
 }
 
-void receiveFeedback(int socket){
+int receiveFeedback(int socket){
     // Receive Feedback
     char buffer[BUFFER]; 
     int size = recv(socket, buffer, BUFFER-1, 0); 
@@ -186,5 +237,9 @@ void receiveFeedback(int socket){
     else{
         buffer[size] = '\0'; // Terminate String
         fprintf(stdout, "%s\n", buffer); 
+
+        if(!strcmp(buffer, "OK"))
+            return 1; 
     }
+    return 0;
 }

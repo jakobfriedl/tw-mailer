@@ -16,9 +16,12 @@ void printUsage();
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
 void sendFeedback(int socket, char* feedback); 
+int validateUserName(char* username); 
 
 int handleSendRequest(int socket); 
 void handleListRequest(int socket); 
+int handleReadRequest(int socket); 
+int handleDelRequest(int socket); 
 
 int main(int argc, char** argv){
     socklen_t addressLength;
@@ -129,11 +132,11 @@ void* clientCommunication(void* data){
             if(abortRequested){
                 perror("RECV error after abort"); 
             }else{ 
-                perror("RECV error"); 
+                perror("RECV error");  
             }
             break; 
         }
-        if(size == 0){
+        if(size == 0){ 
             printf("Client closed remote socket\n"); 
             break; 
         }
@@ -152,19 +155,27 @@ void* clientCommunication(void* data){
             }else{
                 sendFeedback(*currentClientSocket, "OK"); 
             }
+
         } else if(strcmp(buffer, "LIST") == 0){
 
             printf("LIST COMMAND RECEIVED\n");
             handleListRequest(*currentClientSocket);
-            sendFeedback(*currentClientSocket, "OK");  
 
         } else if(strcmp(buffer, "READ") == 0){
 
             printf("READ COMMAND RECEIVED\n");
+            if(handleReadRequest(*currentClientSocket) == -1){
+                sendFeedback(*currentClientSocket, "ERR"); 
+            }
 
         } else if(strcmp(buffer, "DEL") == 0){
 
             printf("DEL COMMAND RECEIVED\n");
+            if(handleDelRequest(*currentClientSocket) == -1){
+                sendFeedback(*currentClientSocket, "ERR"); 
+            }else{
+                sendFeedback(*currentClientSocket, "OK"); 
+            }
 
         } else if(strcmp(buffer, "QUIT") == 0){
 
@@ -231,16 +242,16 @@ int handleSendRequest(int socket){
 
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
     int size = 0; 
-
+ 
     // Receive Sender
     if((size = recv(socket, newMail->sender, BUFFER, 0)) == -1){
         perror("RECV SENDER error");
         return -1; 
     }
     newMail->sender[size] = '\0'; 
-    if(strlen(newMail->sender) > USERNAME_LENGTH){
+    if(!validateUserName(newMail->sender)){
         return -1; 
-    }
+    } 
 
     printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
         
@@ -250,8 +261,8 @@ int handleSendRequest(int socket){
         perror("RECV RECEIVER error");
         return -1; 
     }
-    newMail->receiver[size] = '\0'; 
-    if(strlen(newMail->receiver) > USERNAME_LENGTH){
+    newMail->receiver[size] = '\0';  
+    if(!validateUserName(newMail->receiver)){
         return -1; 
     }
 
@@ -286,7 +297,7 @@ int handleSendRequest(int socket){
     // Find out the correct Mail-Number to access the mail later
     DIR* dir = opendir(directory); 
     struct dirent* dirEntry; 
-    int lastNumberInt = 0; 
+    int highestMailNumber = 0; 
     char* completeFileName = (char*)malloc(BUFFER * sizeof(char)); 
 
     if(!dir){
@@ -294,14 +305,17 @@ int handleSendRequest(int socket){
     }
     while((dirEntry = readdir(dir))){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-            lastNumberInt = atoi(strtok(dirEntry->d_name, "_")); 
+            int mailNumber = atoi(strtok(dirEntry->d_name, "_")); 
+            if(mailNumber > highestMailNumber){
+                highestMailNumber = mailNumber;
+            }
         }
     }
     closedir(dir);
     free(dirEntry); 
 
     // Increase ID of latest mail by 1 
-    lastNumberInt++; 
+    highestMailNumber++; 
 
     // Generate unique filename
     uuid_t uuid; 
@@ -309,7 +323,7 @@ int handleSendRequest(int socket){
     uuid_unparse_lower(uuid, fileName); 
     
     // Construct File Path: mail-spool/username/number_uuid
-    sprintf(completeFileName, "%s/%d_%s", directory, lastNumberInt, fileName);
+    sprintf(completeFileName, "%s/%d_%s", directory, highestMailNumber, fileName);
 
     // Open file in "append"-mode   
     file = fopen(completeFileName, "a"); 
@@ -380,7 +394,6 @@ void handleListRequest(int socket){
         }
         return; 
     }
-    
     while((dirEntry = readdir(dir))){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
             sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
@@ -404,6 +417,8 @@ void handleListRequest(int socket){
             }
         }
     }
+    closedir(dir); 
+    free(dirEntry);
 
     int convertedMailCount = htonl(mailCount); // Convert from host to network 
     if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){
@@ -417,9 +432,137 @@ void handleListRequest(int socket){
     }
 
     free(user); 
-    closedir(dir); 
-    free(dirEntry);
     free(directory); 
     free(pathToFile); 
     free(mailCountChar);
+}
+
+///////////////////////////////////////////
+//! READ - FUNCTIONALITY
+///////////////////////////////////////////
+int handleReadRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+    int size = 0; 
+
+    // Receive Username
+    if((size = recv(socket, user, BUFFER, 0)) == -1){
+        perror("RECV SENDER error");
+        return -1; 
+    }
+    user[size] = '\0';
+    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+
+    // Receive Mail-Number
+    if((size = recv(socket, mailNumber, BUFFER, 0)) == -1){
+        perror("RECV SENDER error");
+        return -1; 
+    }
+    mailNumber[size] = '\0';
+    printf("MailNr.: %s: %d\n", mailNumber, (int)strlen(mailNumber));
+
+    char* directory = (char*)malloc(PATH_MAX);
+    char* pathToFile = (char*)malloc(PATH_MAX);
+    strcpy(directory, mail_spool); 
+    if(directory[strlen(directory)-1] != '/')
+        strcat(directory, "/"); 
+    strcat(directory, user); 
+
+    DIR *dir = opendir(directory); 
+    struct dirent *dirEntry; 
+    int isFound = -1; // Indicates if file with MailNr. is found
+
+    if(!dir){
+        return -1; // User does not exist
+    }
+    while((dirEntry = readdir(dir))){
+        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
+            sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
+            if(!strcmp(strtok(dirEntry->d_name, "_"), mailNumber)){
+                // Answer with OK
+                sendFeedback(socket, "OK"); 
+
+                FILE* file = fopen(pathToFile, "r"); 
+                if(file){
+                    char line[BUFFER]; 
+                    // Send File Contents
+                    while(fgets(line, sizeof(line), file) != NULL){
+                        line[strlen(line)-1] = '\0'; 
+                        if(writen(socket, line, sizeof(line)) == -1){
+                            perror("SEND error"); 
+                            return -1; 
+                        }
+                    }
+                    fclose(file); 
+                }
+                isFound = 0; 
+            }
+        }
+    }
+    closedir(dir); 
+    free(dirEntry); 
+
+    free(directory);
+    free(pathToFile); 
+    free(user);
+    free(mailNumber); 
+
+    return isFound; 
+}
+
+///////////////////////////////////////////
+//! DEL - FUNCTIONALITY
+///////////////////////////////////////////
+int handleDelRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+    int size = 0; 
+
+    // Receive Username
+    if((size = recv(socket, user, BUFFER, 0)) == -1){
+        perror("RECV SENDER error");
+        return -1; 
+    }
+    user[size] = '\0';
+    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+
+    // Receive Mail-Number
+    if((size = recv(socket, mailNumber, BUFFER, 0)) == -1){
+        perror("RECV SENDER error");
+        return -1; 
+    }
+    mailNumber[size] = '\0';
+    printf("MailNr.: %s: %d\n", mailNumber, (int)strlen(mailNumber));
+
+    char* directory = (char*)malloc(PATH_MAX);
+    char* pathToFile = (char*)malloc(PATH_MAX);
+    strcpy(directory, mail_spool); 
+    if(directory[strlen(directory)-1] != '/')
+        strcat(directory, "/"); 
+    strcat(directory, user); 
+
+    DIR *dir = opendir(directory); 
+    struct dirent *dirEntry; 
+    int isFound = -1; // Indicates if file with MailNr. is found
+
+    if(!dir){
+        return -1; // User does not exist
+    }
+    while((dirEntry = readdir(dir))){
+        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
+            sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
+            if(!strcmp(strtok(dirEntry->d_name, "_"), mailNumber)){
+                isFound = remove(pathToFile); // On Failure -1 and on Success 0
+            }
+        }
+    }
+    closedir(dir); 
+    free(dirEntry); 
+
+    free(directory);
+    free(pathToFile); 
+    free(user);
+    free(mailNumber); 
+
+    return isFound; 
 }
