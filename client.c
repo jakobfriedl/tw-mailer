@@ -129,7 +129,7 @@ int main(int argc, char** argv){
                 } 
                 
                 int receivedMailCount; 
-                if(read(clientSocket, &receivedMailCount, sizeof(receivedMailCount)) == -1){
+                if(recv(clientSocket, &receivedMailCount, sizeof(receivedMailCount), 0) == -1){
                     perror("RECV error"); 
                 }
                 int mailCount = ntohl(receivedMailCount); // Convert from network to host
@@ -138,7 +138,7 @@ int main(int argc, char** argv){
                 printf("Number of Messages: %d\n", mailCount); 
                 int size = 0; 
                 for(int i = 0; i < mailCount; i++){
-                    if((size = recv(clientSocket, mails[i], BUFFER, 0)) == -1){
+                    if((size = recv(clientSocket, mails[i], BUFFER, 0)) == -1){ 
                         perror("RECV error");
                     }
                     mails[i][size] = '\0'; 
@@ -147,7 +147,7 @@ int main(int argc, char** argv){
 
                 free(user); 
 
-            } else if(strcmp(buffer, "READ") == 0){
+            } else if(strcmp(buffer, "READ") == 0){ 
 
                 char* user = (char*)malloc(BUFFER * sizeof(char)); 
                 char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
@@ -203,7 +203,7 @@ int main(int argc, char** argv){
             } else if(strcmp(buffer, "QUIT") == 0){
                 break; 
             } else {
-                printf("Unknown command\n"); 
+                receiveFeedback(clientSocket); 
             }
         }
     }while(!quit); 
