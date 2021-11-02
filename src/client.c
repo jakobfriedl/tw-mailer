@@ -11,7 +11,7 @@ int main(int argc, char** argv){
     char buffer[BUFFER]; 
     struct sockaddr_in address; 
     int size; 
-    int quit = 0; 
+    int quit = 0;
 
     // Create Socket
     if((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
@@ -72,7 +72,7 @@ int main(int argc, char** argv){
             
             if(size == 0) continue;  
             
-            // Send Command
+            // Send Command 
             if((send(clientSocket, buffer, size, 0) == -1)){
                 perror("SEND error");
                 break; 

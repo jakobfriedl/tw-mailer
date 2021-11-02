@@ -8,8 +8,8 @@ all: twmailer-server twmailer-client
 clean: 
 	rm -f twmailer-client twmailer-server
 
-twmailer-server: server.c 
-	${COMPILER}  -o twmailer-server server.c ${CFLAGS}
+twmailer-server: src/server.c 
+	${COMPILER}  -o twmailer-server src/server.c ${CFLAGS}
 
-twmailer-client: client.c 
-	${COMPILER}  -o twmailer-client client.c ${CFLAGS}
+twmailer-client: src/client.c 
+	${COMPILER}  -o twmailer-client src/client.c ${CFLAGS}

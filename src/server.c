@@ -11,7 +11,7 @@ char mail_spool[PATH_MAX];
 int serverSocket = -1; 
 int newSocket = -1; 
 int abortRequested = 0; 
-
+ 
 void printUsage(); 
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
@@ -234,7 +234,7 @@ void sendFeedback(int socket, char* feedback){
 }
 
 ///////////////////////////////////////////
-//! SEND - FUNCTIONALITY
+//! SEND - FUNCTIONALITY 
 ///////////////////////////////////////////
 int handleSendRequest(int socket){
 
@@ -307,7 +307,7 @@ int handleSendRequest(int socket){
                 highestMailNumber = mailNumber;
             }
         }
-    }
+    } 
     closedir(dir);
     free(dirEntry); 
 
