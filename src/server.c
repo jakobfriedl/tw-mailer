@@ -16,7 +16,6 @@ void printUsage();
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
 void sendFeedback(int socket, char* feedback); 
-int validateUserName(char* username); 
 
 int handleSendRequest(int socket); 
 void handleListRequest(int socket); 
