@@ -95,21 +95,6 @@ ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
     return n;
 }
 
-int sendData(int socket, char* buffer, int bytesToSend){
-    fgets(buffer, bytesToSend-1, stdin); 
-    int size = (int)strlen(buffer); 
-    if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
-        buffer[size] = 0; 
-        size -= 2; 
-    }else if(buffer[size-1] == '\n'){
-        buffer[size] = 0; 
-        --size;
-    }
-    buffer[size] = '\0';
- 
-    return writen(socket, buffer, bytesToSend-1);  
-}
-
 int validateUserName(char* username){
     // Check if username is max. 8 characters long
     if(strlen(username) > MAX_USERNAME_LENGTH || strlen(username) < MIN_USERNAME_LENGTH){

@@ -68,7 +68,7 @@ int main(int argc, char** argv){
                 buffer[size] = 0; 
             }
             buffer[size] = '\0'; 
-            quit = (strcmp(buffer, "QUIT") == 0);  
+            quit = (!strcmp(buffer, "QUIT"));  
             
             if(size == 0) continue;  
             
@@ -78,7 +78,7 @@ int main(int argc, char** argv){
                 break; 
             } 
 
-            if(strcmp(buffer, "SEND") == 0){ 
+            if(!strcmp(buffer, "SEND")){ 
 
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
@@ -119,7 +119,7 @@ int main(int argc, char** argv){
                 free(newMail); 
                 receiveFeedback(clientSocket);
 
-            } else if(strcmp(buffer, "LIST") == 0){
+            } else if(!strcmp(buffer, "LIST")){
                 
                 char* user = (char*)malloc(BUFFER * sizeof(char)); 
 
@@ -147,7 +147,7 @@ int main(int argc, char** argv){
 
                 free(user); 
 
-            } else if(strcmp(buffer, "READ") == 0){ 
+            } else if(!strcmp(buffer, "READ")){ 
 
                 char* user = (char*)malloc(BUFFER * sizeof(char)); 
                 char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
@@ -180,7 +180,7 @@ int main(int argc, char** argv){
                 free(user); 
                 free(mailNumber); 
 
-            } else if(strcmp(buffer, "DEL") == 0){
+            } else if(!strcmp(buffer, "DEL")){
 
                 char* user = (char*)malloc(BUFFER * sizeof(char)); 
                 char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
@@ -200,7 +200,7 @@ int main(int argc, char** argv){
                 free(user); 
                 free(mailNumber); 
 
-            } else if(strcmp(buffer, "QUIT") == 0){
+            } else if(!strcmp(buffer, "QUIT")){
                 break; 
             } else {
                 receiveFeedback(clientSocket); 
@@ -223,7 +223,22 @@ int main(int argc, char** argv){
 }
 
 void printUsage(){
-    fprintf(stdout, "./tw-client <ip> <port>\n"); 
+    fprintf(stdout, "./twmailer-client <ip> <port>\n"); 
+}
+
+int sendData(int socket, char* buffer, int bytesToSend){
+    fgets(buffer, bytesToSend-1, stdin); 
+    int size = (int)strlen(buffer); 
+    if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        size -= 2; 
+    }else if(buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        --size;
+    }
+    buffer[size] = '\0';
+ 
+    return writen(socket, buffer, bytesToSend-1);  
 }
 
 int receiveFeedback(int socket){

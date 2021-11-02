@@ -147,7 +147,7 @@ void* clientCommunication(void* data){
             --size;            
         buffer[size] = '\0'; // Terminate String
 
-        if(strcmp(buffer, "SEND") == 0){   
+        if(!strcmp(buffer, "SEND")){   
 
             printf("SEND COMMAND RECEIVED\n");
             if(handleSendRequest(*currentClientSocket) == -1){
@@ -156,19 +156,19 @@ void* clientCommunication(void* data){
                 sendFeedback(*currentClientSocket, "OK"); 
             }
 
-        } else if(strcmp(buffer, "LIST") == 0){
+        } else if(!strcmp(buffer, "LIST")){
 
             printf("LIST COMMAND RECEIVED\n");
             handleListRequest(*currentClientSocket);
 
-        } else if(strcmp(buffer, "READ") == 0){
+        } else if(!strcmp(buffer, "READ")){
 
             printf("READ COMMAND RECEIVED\n");
             if(handleReadRequest(*currentClientSocket) == -1){
                 sendFeedback(*currentClientSocket, "ERR"); 
             }
 
-        } else if(strcmp(buffer, "DEL") == 0){
+        } else if(!strcmp(buffer, "DEL")){
 
             printf("DEL COMMAND RECEIVED\n");
             if(handleDelRequest(*currentClientSocket) == -1){
@@ -177,7 +177,7 @@ void* clientCommunication(void* data){
                 sendFeedback(*currentClientSocket, "OK"); 
             }
 
-        } else if(strcmp(buffer, "QUIT") == 0){
+        } else if(!strcmp(buffer, "QUIT")){
             printf("QUIT COMMAND RECEIVED\n");
             break; 
         } else {
@@ -185,7 +185,7 @@ void* clientCommunication(void* data){
             sendFeedback(*currentClientSocket, "ERR"); 
         }
 
-    }while(strcmp(buffer, "QUIT") != 0 && !abortRequested); 
+    }while(strcmp(buffer, "QUIT") && !abortRequested); 
 
     if(*currentClientSocket != 1){
         if(shutdown(*currentClientSocket, SHUT_RDWR) == -1)
@@ -200,7 +200,7 @@ void* clientCommunication(void* data){
 }
 
 void printUsage(){
-    fprintf(stdout, "./tw-server <port> <mail-spool-directory>\n"); 
+    fprintf(stdout, "./twmailer-server <port> <mail-spool-directory>\n"); 
 }
 
 void signalHandler(int signal){
