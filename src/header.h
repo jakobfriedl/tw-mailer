@@ -18,9 +18,9 @@
 #endif
 
 typedef struct mail{
-    char sender[MAX_USERNAME_LENGTH];
-    char receiver[MAX_USERNAME_LENGTH];
-    char subject[SUBJECT_LENGTH]; 
+    char sender[BUFFER];
+    char receiver[BUFFER];
+    char subject[BUFFER]; 
     char message[BUFFER];   
 } mail_t; 
 

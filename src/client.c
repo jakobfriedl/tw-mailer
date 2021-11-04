@@ -83,16 +83,16 @@ int main(int argc, char** argv){
                 mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
                 // Send Sender
-                if(sendData(clientSocket, newMail->sender, BUFFER) == -1){
+                if(sendData(clientSocket, newMail->sender, sizeof(newMail->sender)) == -1){
                     perror("SEND SENDER error"); 
                 } 
                 if(!validateUserName(newMail->sender)){ 
                     receiveFeedback(clientSocket);
                     continue; 
-                } 
+                }
                 
                 // Send Receiver
-                if(sendData(clientSocket, newMail->receiver, BUFFER) == -1){
+                if(sendData(clientSocket, newMail->receiver, sizeof(newMail->receiver)) == -1){
                     perror("SEND RECEIVER error"); 
                 } 
                 if(!validateUserName(newMail->receiver)){
@@ -101,7 +101,7 @@ int main(int argc, char** argv){
                 }
 
                 // Send Subject
-                if(sendData(clientSocket, newMail->subject, BUFFER) == -1){
+                if(sendData(clientSocket, newMail->subject, sizeof(newMail->subject)) == -1){
                     perror("SEND SUBJECT error"); 
                 } 
                 if(strlen(newMail->subject) > SUBJECT_LENGTH){
@@ -111,7 +111,7 @@ int main(int argc, char** argv){
 
                 // Send Message
                 do{
-                    if(sendData(clientSocket, newMail->message, BUFFER) == -1){
+                    if(sendData(clientSocket, newMail->message, sizeof(newMail->message)) == -1){
                         perror("SEND MESSAGE error"); 
                     } 
                 }while(strcmp(newMail->message, ".") != 0);

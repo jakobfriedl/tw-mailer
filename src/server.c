@@ -79,7 +79,6 @@ int main(int argc, char** argv){
         addressLength = sizeof(struct sockaddr_in); 
         if((newSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &addressLength)) == -1){
             if(abortRequested){
-                perror("ACCEPT error after abort");
             }else{
                 perror("ACCEPT error"); 
             } 
@@ -126,7 +125,7 @@ void* clientCommunication(void* data){
 
     do{ 
         // Receive Command
-        size = recv(*currentClientSocket, buffer, BUFFER-1, 0);
+        size = recv(*currentClientSocket, buffer, sizeof(buffer)-1, 0);
         if(size == -1){
             if(abortRequested){
                 perror("RECV error after abort"); 
@@ -204,7 +203,7 @@ void printUsage(){
 
 void signalHandler(int signal){
     if(signal == SIGINT){
-        fprintf(stdout, "Abort Requested..."); 
+        fprintf(stdout, "Server shutdown requested\n"); 
         abortRequested = 1; 
         if(newSocket != -1){
             if(shutdown(newSocket, SHUT_RDWR) == -1)
@@ -241,7 +240,7 @@ int handleSendRequest(int socket){
     int size = 0; 
  
     // Receive Sender
-    if((size = readline(socket, newMail->sender, BUFFER)) == -1){
+    if((size = readline(socket, newMail->sender, sizeof(newMail->sender))) == -1){
         perror("RECV SENDER error");
         return -1; 
     }
@@ -249,11 +248,10 @@ int handleSendRequest(int socket){
     if(!validateUserName(newMail->sender)){
         return -1; 
     } 
-
     printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
 
     // Receive Receiver
-    if((size = readline(socket, newMail->receiver, BUFFER)) == -1){
+    if((size = readline(socket, newMail->receiver, sizeof(newMail->receiver))) == -1){
         perror("RECV RECEIVER error");
         return -1; 
     }
@@ -261,7 +259,6 @@ int handleSendRequest(int socket){
     if(!validateUserName(newMail->receiver)){
         return -1; 
     }
-
     printf("Receiver: %s: %d\n", newMail->receiver, (int)strlen(newMail->receiver)); 
 
     // Create Directory for receiver if it doesnt already exist
@@ -276,7 +273,7 @@ int handleSendRequest(int socket){
     }
 
     // Receive Subject
-    if((size = readline(socket, newMail->subject, BUFFER)) == -1){
+    if((size = readline(socket, newMail->subject, sizeof(newMail->subject))) == -1){
         perror("RECV SUBJECT error");
         return -1; 
     }
@@ -284,7 +281,6 @@ int handleSendRequest(int socket){
     if(strlen(newMail->subject) > SUBJECT_LENGTH){
         return -1; 
     }
-
     printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
     
     char* fileName = (char*)malloc(PATH_MAX);; 
@@ -294,7 +290,7 @@ int handleSendRequest(int socket){
     DIR* dir = opendir(directory); 
     struct dirent* dirEntry; 
     int highestMailNumber = 0; 
-    char* completeFileName = (char*)malloc(BUFFER * sizeof(char)); 
+    char* completeFileName = (char*)malloc(PATH_MAX * sizeof(char)); 
 
     if(!dir){
         return -1; 
@@ -334,14 +330,14 @@ int handleSendRequest(int socket){
 
     // Receive Message
     do{
-        if((size = readline(socket, newMail->message, BUFFER)) == -1){
+        if((size = readline(socket, newMail->message, sizeof(newMail->message))) == -1){
             perror("RECV Message error");
             return -1; 
         }
         newMail->message[size] = '\0'; 
         printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
         fputs(strcat(newMail->message, "\n"), file); 
-    }while(strcmp(newMail->message, ".\n") != 0);
+    }while(strcmp(newMail->message, ".\n"));
 
     fclose(file); 
 
@@ -367,7 +363,6 @@ void handleListRequest(int socket){
         return; 
     }
     user[size] = '\0'; 
-
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
     
     char* directory = (char*)malloc(PATH_MAX);
@@ -380,7 +375,6 @@ void handleListRequest(int socket){
     DIR *dir = opendir(directory); 
     struct dirent *dirEntry; 
     int mailCount = 0; 
-    char* mailCountChar = malloc(sizeof(int));  
     char mails[BUFFER][BUFFER]; 
 
     if(!dir){
@@ -431,7 +425,6 @@ void handleListRequest(int socket){
     free(user); 
     free(directory); 
     free(pathToFile); 
-    free(mailCountChar);
 }
 
 ///////////////////////////////////////////
@@ -504,7 +497,7 @@ int handleReadRequest(int socket){
     free(user);
     free(mailNumber); 
 
-    return isFound; 
+    return isFound;
 }
 
 ///////////////////////////////////////////
@@ -513,7 +506,7 @@ int handleReadRequest(int socket){
 int handleDelRequest(int socket){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
     char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
-    int size = 0; 
+    int size = 0;
 
     // Receive Username
     if((size = readline(socket, user, BUFFER)) == -1){
