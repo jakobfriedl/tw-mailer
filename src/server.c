@@ -269,7 +269,7 @@ int handleSendRequest(int socket){
     strcat(directory, newMail->receiver); 
 
     if(stat(directory, &st) == -1){
-        mkdir(directory, 644);  
+        mkdir(directory, 0777);  
     }
 
     // Receive Subject
