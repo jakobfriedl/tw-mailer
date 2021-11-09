@@ -18,7 +18,7 @@ void* clientCommunication(void* data);
 void sendFeedback(int socket, char* feedback); 
 
 int handleSendRequest(int socket); 
-void handleListRequest(int socket); 
+int handleListRequest(int socket); 
 int handleReadRequest(int socket); 
 int handleDelRequest(int socket); 
 
@@ -157,7 +157,9 @@ void* clientCommunication(void* data){
         } else if(!strcmp(buffer, "LIST")){
 
             printf("LIST COMMAND RECEIVED\n");
-            handleListRequest(*currentClientSocket);
+            if(handleListRequest(*currentClientSocket) == -1){
+                sendFeedback(*currentClientSocket, "ERR"); 
+            }
 
         } else if(!strcmp(buffer, "READ")){
 
@@ -353,16 +355,19 @@ int handleSendRequest(int socket){
 ///////////////////////////////////////////
 //! LIST - FUNCTIONALITY
 ///////////////////////////////////////////
-void handleListRequest(int socket){
+int handleListRequest(int socket){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0; 
 
     // Receive Username
     if((size = readline(socket, user, BUFFER)) == -1){
         perror("RECV SENDER error");
-        return; 
+        return -1; 
     }
     user[size] = '\0'; 
+    if(!validateUserName(user)){
+        return -1; 
+    }
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
     
     char* directory = (char*)malloc(PATH_MAX);
@@ -383,7 +388,7 @@ void handleListRequest(int socket){
         if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){
             perror("SEND error"); 
         }
-        return; 
+        return -1; 
     }
     while((dirEntry = readdir(dir))){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
@@ -425,6 +430,7 @@ void handleListRequest(int socket){
     free(user); 
     free(directory); 
     free(pathToFile); 
+    return 0; 
 }
 
 ///////////////////////////////////////////
@@ -441,6 +447,9 @@ int handleReadRequest(int socket){
         return -1; 
     }
     user[size] = '\0';
+    if(!validateUserName(user)){
+        return -1; 
+    }
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
 
     // Receive Mail-Number
@@ -514,6 +523,9 @@ int handleDelRequest(int socket){
         return -1; 
     }
     user[size] = '\0';
+    if(!validateUserName(user)){
+        return -1; 
+    }
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
 
     // Receive Mail-Number

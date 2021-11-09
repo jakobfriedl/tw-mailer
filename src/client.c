@@ -127,6 +127,10 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, user, BUFFER) == -1){
                     perror("SEND USER error");  
                 } 
+                if(!validateUserName(user)){ 
+                    receiveFeedback(clientSocket);
+                    continue; 
+                }
                 
                 int receivedMailCount; 
                 if(recv(clientSocket, &receivedMailCount, sizeof(receivedMailCount), 0) == -1){
@@ -189,6 +193,10 @@ int main(int argc, char** argv){
                 if(sendData(clientSocket, user, BUFFER) == -1){
                     perror("SEND USER error"); 
                 } 
+                if(!validateUserName(user)){ 
+                    receiveFeedback(clientSocket);
+                    continue; 
+                }
 
                 // Send MailNumber
                 if(sendData(clientSocket, mailNumber, BUFFER) == -1){
