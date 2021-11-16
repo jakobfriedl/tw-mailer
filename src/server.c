@@ -1,7 +1,6 @@
 #include "header.h"
 #include <signal.h>
 #include <sys/stat.h>
-#include <uuid/uuid.h>
 #include <dirent.h>
 
 struct stat st = {0}; 
@@ -268,10 +267,17 @@ int handleSendRequest(int socket){
     strcpy(directory, mail_spool); 
     if(directory[strlen(directory)-1] != '/')
         strcat(directory, "/"); 
-    strcat(directory, newMail->receiver); 
+    strcat(directory, newMail->receiver);
 
+    char* indexFile = (char*)malloc(PATH_MAX); 
+
+    // Create directory and Index File
     if(stat(directory, &st) == -1){
-        mkdir(directory, 0777);  
+        mkdir(directory, 0777);
+        sprintf(indexFile, "%s/index", directory);  
+        FILE* index = fopen(indexFile, "w"); 
+        fputs("1", index); 
+        fclose(index); 
     }
 
     // Receive Subject
@@ -286,49 +292,36 @@ int handleSendRequest(int socket){
     printf("Subject: %s: %d\n", newMail->subject, (int)strlen(newMail->subject)); 
     
     char* fileName = (char*)malloc(PATH_MAX);; 
-    FILE* file = NULL; 
-    
+    FILE* mailFile = NULL; 
+    char* completeFileName = (char*)malloc(PATH_MAX); 
+
     // Find out the correct Mail-Number to access the mail later
-    DIR* dir = opendir(directory); 
-    struct dirent* dirEntry; 
-    int highestMailNumber = 0; 
-    char* completeFileName = (char*)malloc(PATH_MAX * sizeof(char)); 
+    sprintf(indexFile, "%s/index", directory);  
+    FILE* index = fopen(indexFile, "r"); 
+    char highestNumber[BUFFER]; 
+    fgets(highestNumber, sizeof(highestNumber), index); 
+    fclose(index);
 
-    if(!dir){
-        return -1; 
-    }
-    while((dirEntry = readdir(dir))){
-        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-            int mailNumber = atoi(strtok(dirEntry->d_name, "_")); 
-            if(mailNumber > highestMailNumber){
-                highestMailNumber = mailNumber;
-            }
-        }
-    } 
-    closedir(dir);
-    free(dirEntry); 
-
-    // Increase ID of latest mail by 1 
-    highestMailNumber++; 
-
-    // Generate unique filename
-    uuid_t uuid; 
-    uuid_generate_random(uuid); 
-    uuid_unparse_lower(uuid, fileName); 
+    // Construct File Path: mail-spool/username/number
+    sprintf(completeFileName, "%s/%s", directory, highestNumber);
     
-    // Construct File Path: mail-spool/username/number_uuid
-    sprintf(completeFileName, "%s/%d_%s", directory, highestMailNumber, fileName);
+    // Update Index File
+    char nextHighest[BUFFER];
+    sprintf(nextHighest, "%d", atoi(highestNumber)+1); 
+    FILE* updatedIndex = fopen(indexFile, "w"); 
+    fputs(nextHighest, updatedIndex);
+    fclose(updatedIndex); 
 
     // Open file in "append"-mode   
-    file = fopen(completeFileName, "a"); 
+    mailFile = fopen(completeFileName, "a"); 
 
-    if(file == NULL){
+    if(mailFile == NULL){
         return -1; 
     }
 
-    fputs(strcat(newMail->sender, "\n"), file); 
-    fputs(strcat(newMail->receiver, "\n"), file);
-    fputs(strcat(newMail->subject, "\n"), file); 
+    fputs(strcat(newMail->sender, "\n"), mailFile); 
+    fputs(strcat(newMail->receiver, "\n"), mailFile);
+    fputs(strcat(newMail->subject, "\n"), mailFile); 
 
     // Receive Message
     do{
@@ -338,10 +331,10 @@ int handleSendRequest(int socket){
         }
         newMail->message[size] = '\0'; 
         printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
-        fputs(strcat(newMail->message, "\n"), file); 
+        fputs(strcat(newMail->message, "\n"), mailFile); 
     }while(strcmp(newMail->message, ".\n"));
 
-    fclose(file); 
+    fclose(mailFile); 
 
     free(directory);
     free(fileName); 
@@ -404,7 +397,7 @@ int handleListRequest(int socket){
                     if(count == 2){ // Get subject from mail
                         line[strlen(line)-1] = '\0'; // Remove \n and replace it with \0    
                         // Construct Output string shown to client, contains mail-number and subject                        
-                        sprintf(mails[mailCount], "%s - %s", strtok(dirEntry->d_name, "_"), line); 
+                        sprintf(mails[mailCount], "%s - %s", dirEntry->d_name, line); 
                         mailCount++;  
                     }
                     count++; 
