@@ -104,7 +104,6 @@ int validateUserName(char* username){
     // Check if username only contains letters and numbers
     for(int i = 0; i <= strlen(username)-1; i++){
         if((username[i] >= 'a' && username[i] <= 'z')
-        || (username[i] >= 'A' && username[i] <= 'Z')
         || (username[i] >= '0' && username[i] <= '9')){
             // Skip character
         }else{

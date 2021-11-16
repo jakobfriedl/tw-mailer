@@ -3,9 +3,11 @@
 COMPILER = gcc
 CFLAGS = -g -Wall -pthread -luuid
 
+rebuild: clean all
 all: twmailer-server twmailer-client
 
 clean: 
+	clear
 	rm -f twmailer-client twmailer-server
 
 twmailer-server: src/server.c 
