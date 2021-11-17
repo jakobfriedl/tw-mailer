@@ -1,8 +1,15 @@
 #include "header.h"
 
+// Functions
 void printUsage();
 int sendData(int socket, char* buffer, int bytesToSend); 
 int receiveFeedback(int socket); 
+
+int sendLoginRequest(int socket);
+int sendSendRequest(int socket);
+int sendListRequest(int socket);
+int sendReadRequest(int socket);
+int sendDelRequest(int socket);
 
 int main(int argc, char** argv){
 
@@ -78,139 +85,39 @@ int main(int argc, char** argv){
                 break; 
             } 
 
-            if(!strcmp(buffer, "SEND")){ 
+            if(!strcmp(buffer, "LOGIN")){
 
-                mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+                sendLoginRequest(clientSocket);
 
-                // Send Sender
-                if(sendData(clientSocket, newMail->sender, sizeof(newMail->sender)) == -1){
-                    perror("SEND SENDER error"); 
-                } 
-                if(!validateUserName(newMail->sender)){ 
-                    receiveFeedback(clientSocket);
+            }else if(!strcmp(buffer, "SEND")){ 
+
+                if(sendSendRequest(clientSocket) == -1){
+                    receiveFeedback(clientSocket); 
                     continue; 
                 }
-                
-                // Send Receiver
-                if(sendData(clientSocket, newMail->receiver, sizeof(newMail->receiver)) == -1){
-                    perror("SEND RECEIVER error"); 
-                } 
-                if(!validateUserName(newMail->receiver)){
-                    receiveFeedback(clientSocket);
-                    continue;  
-                }
-
-                // Send Subject
-                if(sendData(clientSocket, newMail->subject, sizeof(newMail->subject)) == -1){
-                    perror("SEND SUBJECT error"); 
-                } 
-                if(strlen(newMail->subject) > SUBJECT_LENGTH){
-                    receiveFeedback(clientSocket);
-                    continue;  
-                }
-
-                // Send Message
-                do{
-                    if(sendData(clientSocket, newMail->message, sizeof(newMail->message)) == -1){
-                        perror("SEND MESSAGE error"); 
-                    } 
-                }while(strcmp(newMail->message, ".") != 0);
-
-                free(newMail); 
                 receiveFeedback(clientSocket);
 
             } else if(!strcmp(buffer, "LIST")){
                 
-                char* user = (char*)malloc(BUFFER * sizeof(char)); 
-
-                // Send Username
-                if(sendData(clientSocket, user, BUFFER) == -1){
-                    perror("SEND USER error");  
-                } 
-                if(!validateUserName(user)){ 
+                if(sendListRequest(clientSocket) == -1){
                     receiveFeedback(clientSocket);
                     continue; 
                 }
-                
-                int receivedMailCount; 
-                if(recv(clientSocket, &receivedMailCount, sizeof(receivedMailCount), 0) == -1){
-                    perror("RECV error"); 
-                }
-                int mailCount = ntohl(receivedMailCount); // Convert from network to host
-                char mails[BUFFER][BUFFER]; 
-
-                printf("Number of Messages: %d\n", mailCount); 
-                int size = 0; 
-                for(int i = 0; i < mailCount; i++){
-                    if((size = recv(clientSocket, mails[i], BUFFER, 0)) == -1){ 
-                        perror("RECV error");
-                    }
-                    mails[i][size] = '\0'; 
-                    printf(" %s\n", mails[i]);
-                }
-
-                free(user); 
 
             } else if(!strcmp(buffer, "READ")){ 
 
-                char* user = (char*)malloc(BUFFER * sizeof(char)); 
-                char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
-
-                // Send Username
-                if(sendData(clientSocket, user, BUFFER) == -1){
-                    perror("SEND USER error"); 
-                } 
-                if(!validateUserName(user)){ 
+                if(sendReadRequest(clientSocket) == -1){
                     receiveFeedback(clientSocket);
                     continue; 
                 }
-
-                // Send MailNumber
-                if(sendData(clientSocket, mailNumber, BUFFER) == -1){
-                    perror("SEND MAILNR error"); 
-                } 
-
-                // Check if Server answers with OK or ERR
-                if(receiveFeedback(clientSocket)){
-                    char line[BUFFER];
-                    int size = 0; 
-
-                    // Receive Mail Contents
-                    do{
-                        if((size = recv(clientSocket, line, BUFFER, 0)) == -1){
-                            perror("RECV error"); 
-                        }
-                        line[size] = '\0'; 
-                        printf("%s\n", line); 
-                    }while(strcmp(line, "."));
-                }
-
-                free(user); 
-                free(mailNumber); 
 
             } else if(!strcmp(buffer, "DEL")){
 
-                char* user = (char*)malloc(BUFFER * sizeof(char)); 
-                char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
-
-                // Send Username
-                if(sendData(clientSocket, user, BUFFER) == -1){
-                    perror("SEND USER error"); 
-                } 
-                if(!validateUserName(user)){ 
-                    receiveFeedback(clientSocket);
+                if(sendDelRequest(clientSocket) == -1){
+                    receiveFeedback(clientSocket); 
                     continue; 
-                }
-
-                // Send MailNumber
-                if(sendData(clientSocket, mailNumber, BUFFER) == -1){
-                    perror("SEND MAILNR error"); 
                 } 
-
                 receiveFeedback(clientSocket); 
-
-                free(user); 
-                free(mailNumber); 
 
             } else if(!strcmp(buffer, "QUIT")){
                 break; 
@@ -269,4 +176,156 @@ int receiveFeedback(int socket){
             return 1; 
     }
     return 0;
+}
+
+///////////////////////////////////////////
+//* LOGIN - FUNCTIONALITY 
+///////////////////////////////////////////
+int sendLoginRequest(int socket){
+    return 0; 
+}
+
+///////////////////////////////////////////
+//* SEND - FUNCTIONALITY 
+///////////////////////////////////////////
+int sendSendRequest(int socket){
+    mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
+
+    // Send Sender
+    if(sendData(socket, newMail->sender, sizeof(newMail->sender)) == -1){
+        perror("SEND SENDER error"); 
+    } 
+    if(!validateUserName(newMail->sender)){ 
+        return -1; 
+    }
+    
+    // Send Receiver
+    if(sendData(socket, newMail->receiver, sizeof(newMail->receiver)) == -1){
+        perror("SEND RECEIVER error"); 
+    } 
+    if(!validateUserName(newMail->receiver)){
+        return -1;  
+    }
+
+    // Send Subject
+    if(sendData(socket, newMail->subject, sizeof(newMail->subject)) == -1){
+        perror("SEND SUBJECT error"); 
+    } 
+    if(strlen(newMail->subject) > SUBJECT_LENGTH){
+        return -1;  
+    }
+
+    // Send Message
+    do{
+        if(sendData(socket, newMail->message, sizeof(newMail->message)) == -1){
+            perror("SEND MESSAGE error"); 
+        } 
+    }while(strcmp(newMail->message, ".") != 0);
+
+    free(newMail); 
+
+    return 0; 
+}
+
+///////////////////////////////////////////
+//* LIST - FUNCTIONALITY 
+///////////////////////////////////////////
+int sendListRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+
+    // Send Username
+    if(sendData(socket, user, BUFFER) == -1){
+        perror("SEND USER error");  
+    } 
+    if(!validateUserName(user)){ 
+        return -1; 
+    }
+    
+    int receivedMailCount; 
+    if(recv(socket, &receivedMailCount, sizeof(receivedMailCount), 0) == -1){
+        perror("RECV error"); 
+    }
+    int mailCount = ntohl(receivedMailCount); // Convert from network to host
+    char mails[BUFFER][BUFFER]; 
+
+    printf("Number of Messages: %d\n", mailCount); 
+    int size = 0; 
+    for(int i = 0; i < mailCount; i++){
+        if((size = recv(socket, mails[i], BUFFER, 0)) == -1){ 
+            perror("RECV error");
+        }
+        mails[i][size] = '\0'; 
+        printf(" %s\n", mails[i]);
+    }
+
+    free(user); 
+
+    return 0; 
+}
+
+///////////////////////////////////////////
+//* READ - FUNCTIONALITY 
+///////////////////////////////////////////
+int sendReadRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+
+    // Send Username
+    if(sendData(socket, user, BUFFER) == -1){
+        perror("SEND USER error"); 
+    } 
+    if(!validateUserName(user)){ 
+        return -1; 
+    }
+
+    // Send MailNumber
+    if(sendData(socket, mailNumber, BUFFER) == -1){
+        perror("SEND MAILNR error"); 
+    } 
+
+    // Check if Server answers with OK or ERR
+    if(receiveFeedback(socket)){
+        char line[BUFFER];
+        int size = 0; 
+
+        // Receive Mail Contents
+        do{
+            if((size = recv(socket, line, BUFFER, 0)) == -1){
+                perror("RECV error"); 
+            }
+            line[size] = '\0'; 
+            printf("%s\n", line); 
+        }while(strcmp(line, "."));
+    }
+
+    free(user); 
+    free(mailNumber); 
+
+    return 0; 
+}
+
+///////////////////////////////////////////
+//* DEL - FUNCTIONALITY 
+///////////////////////////////////////////
+int sendDelRequest(int socket){
+    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+
+    // Send Username
+    if(sendData(socket, user, BUFFER) == -1){
+        perror("SEND USER error"); 
+    } 
+    if(!validateUserName(user)){ 
+        return -1; 
+    }
+
+    // Send MailNumber
+    if(sendData(socket, mailNumber, BUFFER) == -1){
+        perror("SEND MAILNR error"); 
+    } 
+
+    free(user); 
+    free(mailNumber); 
+
+    return 0; 
 }

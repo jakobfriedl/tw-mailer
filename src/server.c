@@ -12,17 +12,19 @@ int serverSocket = -1;
 int newSocket = -1; 
 int abortRequested = 0; 
 
-#define NUM_CLIENTS 5
-pthread_mutex_t mutex[NUM_CLIENTS];
+// Definitions for Threading
+#define NUM_CLIENTS 100
+pthread_mutex_t mutex;
 pthread_t clients[NUM_CLIENTS];
 pthread_attr_t attributes[NUM_CLIENTS];
-int clientSocket[NUM_CLIENTS]; 
- 
+
+// Functions
 void printUsage(); 
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
 void sendFeedback(int socket, char* feedback); 
 
+int handleLoginRequest(int socket); 
 int handleSendRequest(int socket); 
 int handleListRequest(int socket); 
 int handleReadRequest(int socket); 
@@ -93,15 +95,15 @@ int main(int argc, char** argv){
         // Start Client
         fprintf(stdout, "Client connected from %s:%d...\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         
-        pthread_mutex_init(&mutex[clientCount], NULL); 
+        pthread_mutex_init(&mutex, NULL); 
         pthread_attr_init(&attributes[clientCount]); 
-        clientSocket[clientCount] = newSocket; 
+        int socket = newSocket;
 
         // Start Thread
-        pthread_create(&clients[clientCount],                   // Thread object
-                       &attributes[clientCount],                // Default thread attributes
-                       clientCommunication,                     // Function
-                       (void*)(&clientSocket[clientCount]));    // Function parameters (socket descriptor)
+        pthread_create(&clients[clientCount],           // Thread object
+                       &attributes[clientCount],        // Default thread attributes
+                       clientCommunication,             // Function
+                       (void*)&socket);                   // Function parameters (socket descriptor, client number)
         
         clientCount++; 
 
@@ -120,9 +122,7 @@ int main(int argc, char** argv){
     printf("All clients are done.\n"); 
 
     // Destroy mutex
-    for(int i = 0; i < clientCount; i++){
-        pthread_mutex_destroy(&mutex[i]); 
-    }
+    pthread_mutex_destroy(&mutex); 
 
     // Close Socket
     if(serverSocket != -1){
@@ -140,23 +140,24 @@ int main(int argc, char** argv){
 void* clientCommunication(void* data){
     char buffer[BUFFER]; 
     int size; 
-    int* currentClientSocket = (int*)data; 
+    int currentClientSocket = *(int*)data; 
 
     // Welcome Client
     strcpy(buffer, "\nWelcome to TW-Mail-Server, you can use to following commands: \
+                    \n   LOGIN \
                     \n   SEND \
                     \n   LIST \
                     \n   READ \
                     \n   DEL \
                     \n   QUIT\n");
-    if (send(*currentClientSocket, buffer, strlen(buffer), 0) == -1){
+    if (send(currentClientSocket, buffer, strlen(buffer), 0) == -1){
         perror("SEND error");
         return NULL;
     }
 
     do{ 
         // Receive Command
-        size = recv(*currentClientSocket, buffer, sizeof(buffer)-1, 0);
+        size = recv(currentClientSocket, buffer, sizeof(buffer)-1, 0);
         if(size == -1){
             if(abortRequested){
                 perror("RECV error after abort"); 
@@ -176,36 +177,40 @@ void* clientCommunication(void* data){
             --size;            
         buffer[size] = '\0'; // Terminate String
 
-        if(!strcmp(buffer, "SEND")){   
+        if(!strcmp(buffer, "LOGIN")){
+
+            printf("LOGIN COMMAND RECEIVED\n");
+
+        } else if(!strcmp(buffer, "SEND")){   
 
             printf("SEND COMMAND RECEIVED\n");
-            if(handleSendRequest(*currentClientSocket) == -1){
-                sendFeedback(*currentClientSocket, "ERR"); 
+            if(handleSendRequest(currentClientSocket) == -1){
+                sendFeedback(currentClientSocket, "ERR"); 
             }else{
-                sendFeedback(*currentClientSocket, "OK"); 
+                sendFeedback(currentClientSocket, "OK"); 
             }
 
         } else if(!strcmp(buffer, "LIST")){
 
             printf("LIST COMMAND RECEIVED\n");
-            if(handleListRequest(*currentClientSocket) == -1){
-                sendFeedback(*currentClientSocket, "ERR"); 
+            if(handleListRequest(currentClientSocket) == -1){
+                sendFeedback(currentClientSocket, "ERR"); 
             }
 
         } else if(!strcmp(buffer, "READ")){
 
             printf("READ COMMAND RECEIVED\n");
-            if(handleReadRequest(*currentClientSocket) == -1){
-                sendFeedback(*currentClientSocket, "ERR"); 
+            if(handleReadRequest(currentClientSocket) == -1){
+                sendFeedback(currentClientSocket, "ERR"); 
             }
 
         } else if(!strcmp(buffer, "DEL")){
 
             printf("DEL COMMAND RECEIVED\n");
-            if(handleDelRequest(*currentClientSocket) == -1){
-                sendFeedback(*currentClientSocket, "ERR"); 
+            if(handleDelRequest(currentClientSocket) == -1){
+                sendFeedback(currentClientSocket, "ERR"); 
             }else{
-                sendFeedback(*currentClientSocket, "OK"); 
+                sendFeedback(currentClientSocket, "OK"); 
             }
 
         } else if(!strcmp(buffer, "QUIT")){
@@ -213,18 +218,18 @@ void* clientCommunication(void* data){
             break; 
         } else {
             // Unknown command
-            sendFeedback(*currentClientSocket, "ERR"); 
+            sendFeedback(currentClientSocket, "ERR"); 
         }
 
     }while(strcmp(buffer, "QUIT") && !abortRequested); 
 
-    if(*currentClientSocket != 1){
-        if(shutdown(*currentClientSocket, SHUT_RDWR) == -1)
-            perror("SHUTDOWN error: currentClientSocket");
-        if(close(*currentClientSocket) == -1){
-            perror("CLOSE error: currentClientSocket");
+    if(currentClientSocket != 1){
+        if(shutdown(currentClientSocket, SHUT_RDWR) == -1)
+            perror("SHUTDOWN error:currentClientSocket");
+        if(close(currentClientSocket) == -1){
+            perror("CLOSE error:currentClientSocket");
         }
-        *currentClientSocket = -1;
+        currentClientSocket = -1;
     }
 
     pthread_exit(NULL);
@@ -263,6 +268,13 @@ void sendFeedback(int socket, char* feedback){
         perror("Server failed to send answer"); 
         return; 
     }
+}
+
+///////////////////////////////////////////
+//! LOGIN - FUNCTIONALITY 
+///////////////////////////////////////////
+int handleLoginRequest(int socket){
+    return 0; 
 }
 
 ///////////////////////////////////////////

@@ -24,8 +24,8 @@ typedef struct mail{
     char message[BUFFER];   
 } mail_t; 
 
-ssize_t readline(int socketDecriptor, void *buffer, size_t maxlen);
 static ssize_t my_read(int socketDecriptor, char *ptr); 
+ssize_t readline(int socketDecriptor, void *buffer, size_t maxlen);
 ssize_t writen(int socketDescriptor, const void *buffer, size_t n); 
 int validateUserName(char* username); 
 
