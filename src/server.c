@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <pthread.h>
 
 struct stat st = {0}; 
 
@@ -10,6 +11,12 @@ char mail_spool[PATH_MAX];
 int serverSocket = -1; 
 int newSocket = -1; 
 int abortRequested = 0; 
+
+#define NUM_CLIENTS 5
+pthread_mutex_t mutex[NUM_CLIENTS];
+pthread_t clients[NUM_CLIENTS];
+pthread_attr_t attributes[NUM_CLIENTS];
+int clientSocket[NUM_CLIENTS]; 
  
 void printUsage(); 
 void signalHandler(int signal); 
@@ -71,25 +78,50 @@ int main(int argc, char** argv){
         return EXIT_FAILURE;
     }
 
+    int clientCount = 0; 
     while(!abortRequested){
         fprintf(stdout, "Waiting for connection...\n"); 
 
         // Accept Connection Setup
         addressLength = sizeof(struct sockaddr_in); 
         if((newSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &addressLength)) == -1){
-            if(abortRequested){
-            }else{
+            if(!abortRequested){
                 perror("ACCEPT error"); 
             } 
             break; 
         }
-
         // Start Client
         fprintf(stdout, "Client connected from %s:%d...\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         
-        clientCommunication(&newSocket); 
+        pthread_mutex_init(&mutex[clientCount], NULL); 
+        pthread_attr_init(&attributes[clientCount]); 
+        clientSocket[clientCount] = newSocket; 
+
+        // Start Thread
+        pthread_create(&clients[clientCount],                   // Thread object
+                       &attributes[clientCount],                // Default thread attributes
+                       clientCommunication,                     // Function
+                       (void*)(&clientSocket[clientCount]));    // Function parameters (socket descriptor)
+        
+        clientCount++; 
 
         newSocket = -1; 
+    }
+
+    // Wait for all threads to finish
+    for(int i = 0; i < clientCount; i++){
+        printf("Waiting for client %d to finish...\n", i); 
+        if(pthread_join(clients[i], NULL)){
+            fprintf(stderr, "ERR: join not successful");
+        }else{
+            printf("Client %d is done.\n", i); 
+        }
+    }
+    printf("All clients are done.\n"); 
+
+    // Destroy mutex
+    for(int i = 0; i < clientCount; i++){
+        pthread_mutex_destroy(&mutex[i]); 
     }
 
     // Close Socket
@@ -108,7 +140,7 @@ int main(int argc, char** argv){
 void* clientCommunication(void* data){
     char buffer[BUFFER]; 
     int size; 
-    int* currentClientSocket = (int *)data; 
+    int* currentClientSocket = (int*)data; 
 
     // Welcome Client
     strcpy(buffer, "\nWelcome to TW-Mail-Server, you can use to following commands: \
@@ -195,6 +227,7 @@ void* clientCommunication(void* data){
         *currentClientSocket = -1;
     }
 
+    pthread_exit(NULL);
     return NULL; 
 }
 
@@ -305,7 +338,7 @@ int handleSendRequest(int socket){
     // Construct File Path: mail-spool/username/number
     sprintf(completeFileName, "%s/%s", directory, highestNumber);
     
-    // Update Index File
+    // Update Index File with next highest Number
     char nextHighest[BUFFER];
     sprintf(nextHighest, "%d", atoi(highestNumber)+1); 
     FILE* updatedIndex = fopen(indexFile, "w"); 
