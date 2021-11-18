@@ -41,6 +41,8 @@ int main(int argc, char** argv){
     }
 
     strcpy(mail_spool, argv[2]); 
+    if(mail_spool[strlen(mail_spool)-1] != '/')
+        strcat(mail_spool, "/"); 
 
     // Signal Handler
     if(signal(SIGINT, signalHandler) == SIG_ERR){
@@ -103,7 +105,7 @@ int main(int argc, char** argv){
         pthread_create(&clients[clientCount],           // Thread object
                        &attributes[clientCount],        // Default thread attributes
                        clientCommunication,             // Function
-                       (void*)&socket);                   // Function parameters (socket descriptor, client number)
+                       (void*)&socket);                 // Function parameters (socket descriptor, client number)
         
         clientCount++; 
 
@@ -143,7 +145,7 @@ void* clientCommunication(void* data){
     int currentClientSocket = *(int*)data; 
 
     // Welcome Client
-    strcpy(buffer, "\nWelcome to TW-Mail-Server, you can use to following commands: \
+    strcpy(buffer, "\nWelcome to TW-Mail-Server, you can use to following commands:\n \
                     \n   LOGIN \
                     \n   SEND \
                     \n   LIST \
@@ -309,10 +311,7 @@ int handleSendRequest(int socket){
 
     // Create Directory for receiver if it doesnt already exist
     char* directory = (char*)malloc(PATH_MAX);
-    strcpy(directory, mail_spool); 
-    if(directory[strlen(directory)-1] != '/')
-        strcat(directory, "/"); 
-    strcat(directory, newMail->receiver);
+    sprintf(directory, "%s%s", mail_spool, newMail->receiver);
 
     char* indexFile = (char*)malloc(PATH_MAX); 
 
@@ -410,10 +409,7 @@ int handleListRequest(int socket){
     
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
-    strcpy(directory, mail_spool); 
-    if(directory[strlen(directory)-1] != '/')
-        strcat(directory, "/"); 
-    strcat(directory, user); 
+    sprintf(directory, "%s%s", mail_spool, user); 
 
     DIR *dir = opendir(directory); 
     struct dirent *dirEntry; 
@@ -500,51 +496,30 @@ int handleReadRequest(int socket){
 
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
-    strcpy(directory, mail_spool); 
-    if(directory[strlen(directory)-1] != '/')
-        strcat(directory, "/"); 
-    strcat(directory, user); 
 
-    DIR *dir = opendir(directory); 
-    struct dirent *dirEntry;
-    int isFound = -1; // Indicates if file with MailNr. is found
-
-    if(!dir){
-        return -1; // User does not exist
+    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber); 
+    FILE* mail = fopen(pathToFile, "r"); 
+    if(!mail){
+        return -1; // File or User not found
     }
-    while((dirEntry = readdir(dir))){
-        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-            sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
-            if(!strcmp(strtok(dirEntry->d_name, "_"), mailNumber)){
-                // Answer with OK
-                sendFeedback(socket, "OK"); 
+    sendFeedback(socket, "OK"); 
 
-                FILE* file = fopen(pathToFile, "r"); 
-                if(file){
-                    char line[BUFFER]; 
-                    // Send File Contents
-                    while(fgets(line, sizeof(line), file) != NULL){
-                        line[strlen(line)-1] = '\0'; 
-                        if(writen(socket, line, sizeof(line)) == -1){
-                            perror("SEND error"); 
-                            return -1; 
-                        }
-                    }
-                    fclose(file); 
-                }
-                isFound = 0; 
-            }
+    char line[BUFFER]; 
+    while(fgets(line, sizeof(line), mail) != NULL){
+        line[strlen(line)-1] = '\0'; 
+        if(writen(socket, line, sizeof(line)) == -1){
+            perror("SEND error"); 
+            return -1; 
         }
     }
-    closedir(dir); 
-    free(dirEntry); 
+    fclose(mail); 
 
     free(directory);
     free(pathToFile); 
     free(user);
     free(mailNumber); 
 
-    return isFound;
+    return 0;
 }
 
 ///////////////////////////////////////////
@@ -576,28 +551,9 @@ int handleDelRequest(int socket){
 
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
-    strcpy(directory, mail_spool); 
-    if(directory[strlen(directory)-1] != '/')
-        strcat(directory, "/"); 
-    strcat(directory, user); 
-
-    DIR *dir = opendir(directory); 
-    struct dirent *dirEntry; 
-    int isFound = -1; // Indicates if file with MailNr. is found
-
-    if(!dir){
-        return -1; // User does not exist
-    }
-    while((dirEntry = readdir(dir))){
-        if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
-            sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
-            if(!strcmp(strtok(dirEntry->d_name, "_"), mailNumber)){
-                isFound = remove(pathToFile); // On Failure -1 and on Success 0
-            }
-        }
-    }
-    closedir(dir); 
-    free(dirEntry); 
+    
+    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber); 
+    int isFound = remove(pathToFile); // On-error, returns -1
 
     free(directory);
     free(pathToFile); 
