@@ -97,7 +97,10 @@ int main(int argc, char** argv){
         // Start Client
         fprintf(stdout, "Client connected from %s:%d...\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         
-        pthread_mutex_init(&mutex, NULL); 
+        if(pthread_mutex_init(&mutex, NULL)){
+            perror("ERR: mutex_init"); 
+            exit(EXIT_FAILURE); 
+        }
         pthread_attr_init(&attributes[clientCount]); 
         int socket = newSocket;
 
@@ -198,6 +201,7 @@ void* clientCommunication(void* data){
             if(handleListRequest(currentClientSocket) == -1){
                 sendFeedback(currentClientSocket, "ERR"); 
             }
+
 
         } else if(!strcmp(buffer, "READ")){
 
@@ -315,6 +319,10 @@ int handleSendRequest(int socket){
 
     char* indexFile = (char*)malloc(PATH_MAX); 
 
+    if(pthread_mutex_lock(&mutex)){
+        perror("ERR: mutex_lock"); 
+        return -1;  
+    }
     // Create directory and Index File
     if(stat(directory, &st) == -1){
         mkdir(directory, 0777);
@@ -323,6 +331,7 @@ int handleSendRequest(int socket){
         fputs("1", index); 
         fclose(index); 
     }
+    pthread_mutex_unlock(&mutex); 
 
     // Receive Subject
     if((size = readline(socket, newMail->subject, sizeof(newMail->subject))) == -1){
@@ -339,6 +348,10 @@ int handleSendRequest(int socket){
     FILE* mailFile = NULL; 
     char* completeFileName = (char*)malloc(PATH_MAX); 
 
+    if(pthread_mutex_lock(&mutex)){
+        perror("ERR: mutex_lock"); 
+        return -1;  
+    }
     // Find out the correct Mail-Number to access the mail later
     sprintf(indexFile, "%s/index", directory);  
     FILE* index = fopen(indexFile, "r"); 
@@ -355,6 +368,8 @@ int handleSendRequest(int socket){
     FILE* updatedIndex = fopen(indexFile, "w"); 
     fputs(nextHighest, updatedIndex);
     fclose(updatedIndex); 
+    
+    pthread_mutex_unlock(&mutex); 
 
     // Open file in "append"-mode   
     mailFile = fopen(completeFileName, "a"); 
