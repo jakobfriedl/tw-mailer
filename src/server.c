@@ -40,9 +40,12 @@ int main(int argc, char** argv){
         return EXIT_FAILURE; 
     }
 
-    strcpy(mail_spool, argv[2]); 
-    if(mail_spool[strlen(mail_spool)-1] != '/')
-        strcat(mail_spool, "/"); 
+    if(argv[2][strlen(argv[2])-1] != '/')
+        strcat(argv[2], "/"); 
+    sprintf(mail_spool, "mail-spool/%s", argv[2]); 
+    if(stat(mail_spool, &st) == -1){
+        mkdir(mail_spool, 0777); 
+    }
 
     // Signal Handler
     if(signal(SIGINT, signalHandler) == SIG_ERR){
@@ -108,7 +111,7 @@ int main(int argc, char** argv){
         pthread_create(&clients[clientCount],           // Thread object
                        &attributes[clientCount],        // Default thread attributes
                        clientCommunication,             // Function
-                       (void*)&socket);                 // Function parameters (socket descriptor, client number)
+                       (void*)&socket);                 // Function parameters (socket descriptor)
         
         clientCount++; 
 
@@ -432,12 +435,12 @@ int handleListRequest(int socket){
     char mails[BUFFER][BUFFER]; 
 
     if(!dir){
-        // User does not exist
+        // User does not exist -> only send mailcount (0)
         int convertedMailCount = htonl(mailCount); // Convert from host to network 
         if(writen(socket, &convertedMailCount, sizeof(convertedMailCount)) == -1){
             perror("SEND error"); 
         }
-        return -1; 
+        return 0; 
     }
     while((dirEntry = readdir(dir))){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
@@ -512,7 +515,12 @@ int handleReadRequest(int socket){
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
 
-    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber); 
+    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber);
+
+    if(pthread_mutex_lock(&mutex)){
+        perror("ERR: mutex_lock"); 
+        return -1;  
+    } 
     FILE* mail = fopen(pathToFile, "r"); 
     if(!mail){
         return -1; // File or User not found
@@ -528,6 +536,8 @@ int handleReadRequest(int socket){
         }
     }
     fclose(mail); 
+
+    pthread_mutex_unlock(&mutex); 
 
     free(directory);
     free(pathToFile); 
@@ -568,7 +578,12 @@ int handleDelRequest(int socket){
     char* pathToFile = (char*)malloc(PATH_MAX);
     
     sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber); 
+    if(pthread_mutex_lock(&mutex)){
+        perror("ERR: mutex_lock"); 
+        return -1;  
+    }
     int isFound = remove(pathToFile); // On-error, returns -1
+    pthread_mutex_unlock(&mutex); 
 
     free(directory);
     free(pathToFile); 

@@ -63,6 +63,7 @@ int main(int argc, char** argv){
     }
 
     do{
+        printf("> "); 
         if(fgets(buffer, BUFFER, stdin) != NULL){
             int size = strlen(buffer); 
 
@@ -192,6 +193,7 @@ int sendSendRequest(int socket){
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
     // Send Sender
+    printf("from: "); 
     if(sendData(socket, newMail->sender, sizeof(newMail->sender)) == -1){
         perror("SEND SENDER error"); 
     } 
@@ -200,6 +202,7 @@ int sendSendRequest(int socket){
     }
     
     // Send Receiver
+    printf("to: "); 
     if(sendData(socket, newMail->receiver, sizeof(newMail->receiver)) == -1){
         perror("SEND RECEIVER error"); 
     } 
@@ -208,6 +211,7 @@ int sendSendRequest(int socket){
     }
 
     // Send Subject
+    printf("subject: "); 
     if(sendData(socket, newMail->subject, sizeof(newMail->subject)) == -1){
         perror("SEND SUBJECT error"); 
     } 
@@ -216,6 +220,7 @@ int sendSendRequest(int socket){
     }
 
     // Send Message
+    printf("-------------\n"); 
     do{
         if(sendData(socket, newMail->message, sizeof(newMail->message)) == -1){
             perror("SEND MESSAGE error"); 
@@ -234,6 +239,7 @@ int sendListRequest(int socket){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
 
     // Send Username
+    printf("from: "); 
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error");  
     } 
@@ -241,11 +247,12 @@ int sendListRequest(int socket){
         return -1; 
     }
     
-    int receivedMailCount; 
+    int mailCount = 0;
+    int receivedMailCount = 0; 
     if(recv(socket, &receivedMailCount, sizeof(receivedMailCount), 0) == -1){
         perror("RECV error"); 
     }
-    int mailCount = ntohl(receivedMailCount); // Convert from network to host
+    mailCount = ntohl(receivedMailCount); // Convert from network to host
     char mails[BUFFER][BUFFER]; 
 
     printf("Number of Messages: %d\n", mailCount); 
@@ -271,6 +278,7 @@ int sendReadRequest(int socket){
     char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
 
     // Send Username
+    printf("from: "); 
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error"); 
     } 
@@ -279,6 +287,7 @@ int sendReadRequest(int socket){
     }
 
     // Send MailNumber
+    printf("id: "); 
     if(sendData(socket, mailNumber, BUFFER) == -1){
         perror("SEND MAILNR error"); 
     } 
@@ -289,6 +298,7 @@ int sendReadRequest(int socket){
         int size = 0; 
 
         // Receive Mail Contents
+        printf("-------------\n"); 
         do{
             if((size = recv(socket, line, BUFFER, 0)) == -1){
                 perror("RECV error"); 
@@ -312,6 +322,7 @@ int sendDelRequest(int socket){
     char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
 
     // Send Username
+    printf("from: "); 
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error"); 
     } 
@@ -320,6 +331,7 @@ int sendDelRequest(int socket){
     }
 
     // Send MailNumber
+    printf("id: "); 
     if(sendData(socket, mailNumber, BUFFER) == -1){
         perror("SEND MAILNR error"); 
     } 
