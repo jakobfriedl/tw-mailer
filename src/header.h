@@ -98,6 +98,7 @@ ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
 int validateUserName(char* username){
     // Check if username is max. 8 characters long
     if(strlen(username) > MAX_USERNAME_LENGTH || strlen(username) < MIN_USERNAME_LENGTH){
+        printf("Username too long\n");
         return 0; 
     }
 
@@ -107,6 +108,7 @@ int validateUserName(char* username){
         || (username[i] >= '0' && username[i] <= '9')){
             // Skip character
         }else{
+            printf("Username contains invalid characters\n"); 
             return 0; 
         }
     }

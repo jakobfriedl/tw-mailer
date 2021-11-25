@@ -1,9 +1,11 @@
 #include "header.h"
+#include <termios.h>
 
 // Functions
 void printUsage();
 int sendData(int socket, char* buffer, int bytesToSend); 
 int receiveFeedback(int socket); 
+void getPassword(char* pw);
 
 int sendLoginRequest(int socket);
 int sendSendRequest(int socket);
@@ -86,38 +88,28 @@ int main(int argc, char** argv){
                 break; 
             } 
 
+            // Check Command
             if(!strcmp(buffer, "LOGIN")){
 
                 sendLoginRequest(clientSocket);
+                receiveFeedback(clientSocket); 
 
             }else if(!strcmp(buffer, "SEND")){ 
 
-                if(sendSendRequest(clientSocket) == -1){
-                    receiveFeedback(clientSocket); 
-                    continue; 
-                }
+                sendSendRequest(clientSocket);
                 receiveFeedback(clientSocket);
 
             } else if(!strcmp(buffer, "LIST")){
                 
-                if(sendListRequest(clientSocket) == -1){
-                    receiveFeedback(clientSocket);
-                    continue; 
-                }
+                sendListRequest(clientSocket);
 
             } else if(!strcmp(buffer, "READ")){ 
 
-                if(sendReadRequest(clientSocket) == -1){
-                    receiveFeedback(clientSocket);
-                    continue; 
-                }
+                sendReadRequest(clientSocket);
 
             } else if(!strcmp(buffer, "DEL")){
 
-                if(sendDelRequest(clientSocket) == -1){
-                    receiveFeedback(clientSocket); 
-                    continue; 
-                } 
+                sendDelRequest(clientSocket);
                 receiveFeedback(clientSocket); 
 
             } else if(!strcmp(buffer, "QUIT")){
@@ -147,7 +139,6 @@ void printUsage(){
 }
 
 int sendData(int socket, char* buffer, int bytesToSend){
-    fgets(buffer, bytesToSend-1, stdin); 
     int size = (int)strlen(buffer); 
     if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
         buffer[size] = 0; 
@@ -179,11 +170,58 @@ int receiveFeedback(int socket){
     return 0;
 }
 
+// Hides Password when typing it to console
+void getPassword(char* pw){
+    static struct termios oldt, newt;
+    int c, i = 0;
+
+    // Saving the old settings of STDIN_FILENO and copy settings for resetting
+    tcgetattr( STDIN_FILENO, &oldt);
+    newt = oldt;
+    
+    // Setting the approriate bit in the termios struct
+    newt.c_lflag &= ~(ECHO);          
+
+    /// etting the new bits
+    tcsetattr( STDIN_FILENO, TCSANOW, &newt);
+
+    // Reading the password from the console
+    while ((c = getchar())!= '\n' && c != EOF && i < BUFFER){
+        pw[i++] = c;
+    }
+    pw[i] = '\0';
+
+    // Resetting our old STDIN_FILENO
+    tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
+    printf("\n"); 
+}
+
 ///////////////////////////////////////////
 //* LOGIN - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendLoginRequest(int socket){
-    return 0; 
+    char* user = (char*)malloc(BUFFER); 
+    char* password = (char*)malloc(BUFFER); 
+
+    // Send Username
+    do{
+        printf("username: "); 
+        fgets(user, BUFFER, stdin); 
+        user[strlen(user)-1] = '\0'; 
+    } while(!validateUserName(user));
+
+    if(sendData(socket, user, BUFFER) == -1){
+        perror("SEND USER error"); 
+    } 
+
+    // Send Passwort
+    printf("password: "); 
+    getPassword(password);
+    if(sendData(socket, password, BUFFER) == -1){
+        perror("SEND PASSWORD error"); 
+    } 
+
+    return 0;
 }
 
 ///////////////////////////////////////////
@@ -193,35 +231,43 @@ int sendSendRequest(int socket){
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
 
     // Send Sender
-    printf("from: "); 
+    do{
+        printf("from: "); 
+        fgets(newMail->sender, sizeof(newMail->sender), stdin); 
+        newMail->sender[strlen(newMail->sender)-1] = '\0'; 
+    } while(!validateUserName(newMail->sender));
+    
     if(sendData(socket, newMail->sender, sizeof(newMail->sender)) == -1){
         perror("SEND SENDER error"); 
     } 
-    if(!validateUserName(newMail->sender)){ 
-        return -1; 
-    }
+
     
     // Send Receiver
-    printf("to: "); 
+    do {
+        printf("to: "); 
+        fgets(newMail->receiver, sizeof(newMail->receiver), stdin); 
+        newMail->receiver[strlen(newMail->receiver)-1] = '\0'; 
+    } while(!validateUserName(newMail->receiver));
+
     if(sendData(socket, newMail->receiver, sizeof(newMail->receiver)) == -1){
         perror("SEND RECEIVER error"); 
     } 
-    if(!validateUserName(newMail->receiver)){
-        return -1;  
-    }
 
     // Send Subject
-    printf("subject: "); 
+    do {
+        printf("subject: "); 
+        fgets(newMail->subject, sizeof(newMail->subject), stdin);
+        newMail->subject[strlen(newMail->subject)-1] = '\0'; 
+    } while(strlen(newMail->subject) > SUBJECT_LENGTH);
+    
     if(sendData(socket, newMail->subject, sizeof(newMail->subject)) == -1){
         perror("SEND SUBJECT error"); 
     } 
-    if(strlen(newMail->subject) > SUBJECT_LENGTH){
-        return -1;  
-    }
 
     // Send Message
     printf("-------------\n"); 
     do{
+        fgets(newMail->message, sizeof(newMail->message), stdin); 
         if(sendData(socket, newMail->message, sizeof(newMail->message)) == -1){
             perror("SEND MESSAGE error"); 
         } 
@@ -236,16 +282,18 @@ int sendSendRequest(int socket){
 //* LIST - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendListRequest(int socket){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
+    char* user = (char*)malloc(BUFFER); 
 
     // Send Username
-    printf("from: "); 
+    do{
+        printf("from: "); 
+        fgets(user, BUFFER, stdin); 
+        user[strlen(user)-1] = '\0'; 
+    } while(!validateUserName(user));
+
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error");  
     } 
-    if(!validateUserName(user)){ 
-        return -1; 
-    }
     
     int mailCount = 0;
     int receivedMailCount = 0; 
@@ -274,20 +322,23 @@ int sendListRequest(int socket){
 //* READ - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendReadRequest(int socket){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
-    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+    char* user = (char*)malloc(BUFFER); 
+    char* mailNumber = (char*)malloc(BUFFER); 
 
     // Send Username
-    printf("from: "); 
+    do{
+        printf("from: "); 
+        fgets(user, BUFFER, stdin); 
+        user[strlen(user)-1] = '\0'; 
+    } while(!validateUserName(user));
+
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error"); 
     } 
-    if(!validateUserName(user)){ 
-        return -1; 
-    }
-
+ 
     // Send MailNumber
     printf("id: "); 
+    fgets(mailNumber, BUFFER, stdin); 
     if(sendData(socket, mailNumber, BUFFER) == -1){
         perror("SEND MAILNR error"); 
     } 
@@ -318,20 +369,23 @@ int sendReadRequest(int socket){
 //* DEL - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendDelRequest(int socket){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
-    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
+    char* user = (char*)malloc(BUFFER); 
+    char* mailNumber = (char*)malloc(BUFFER); 
 
     // Send Username
-    printf("from: "); 
+    do{
+        printf("from: "); 
+        fgets(user, BUFFER, stdin); 
+        user[strlen(user)-1] = '\0'; 
+    } while(!validateUserName(user));
+
     if(sendData(socket, user, BUFFER) == -1){
         perror("SEND USER error"); 
     } 
-    if(!validateUserName(user)){ 
-        return -1; 
-    }
 
     // Send MailNumber
     printf("id: "); 
+    fgets(mailNumber, BUFFER, stdin); 
     if(sendData(socket, mailNumber, BUFFER) == -1){
         perror("SEND MAILNR error"); 
     } 

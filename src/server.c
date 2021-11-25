@@ -185,9 +185,15 @@ void* clientCommunication(void* data){
             --size;            
         buffer[size] = '\0'; // Terminate String
 
+        // Check Command
         if(!strcmp(buffer, "LOGIN")){
 
             printf("LOGIN COMMAND RECEIVED\n");
+            if(handleLoginRequest(currentClientSocket) == -1){
+                sendFeedback(currentClientSocket, "ERR"); 
+            }else{
+                sendFeedback(currentClientSocket, "OK"); 
+            }
 
         } else if(!strcmp(buffer, "SEND")){   
 
@@ -283,6 +289,29 @@ void sendFeedback(int socket, char* feedback){
 //! LOGIN - FUNCTIONALITY 
 ///////////////////////////////////////////
 int handleLoginRequest(int socket){
+    char* user = (char*)malloc(BUFFER); 
+    char* password = (char*)malloc(BUFFER); 
+    int size = 0; 
+
+    // Receive User
+    if((size = readline(socket, user, BUFFER)) == -1){
+        perror("RECV USER error");
+        return -1; 
+    }
+    user[size] = '\0'; 
+    if(!validateUserName(user)){
+        return -1; 
+    } 
+    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+
+    // Receive Password
+    if((size = readline(socket, password, BUFFER)) == -1){
+        perror("RECV PASSWORD error");
+        return -1; 
+    }
+    password[size] = '\0'; 
+    printf("Password: %s: %d\n", password, (int)strlen(password)); 
+
     return 0; 
 }
 
@@ -290,7 +319,6 @@ int handleLoginRequest(int socket){
 //! SEND - FUNCTIONALITY 
 ///////////////////////////////////////////
 int handleSendRequest(int socket){
-
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
     int size = 0; 
  
