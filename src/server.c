@@ -20,13 +20,18 @@ int abortRequested = 0;
 pthread_mutex_t mutex;
 pthread_t clients[NUM_CLIENTS];
 
+typedef struct args{
+    int socket; 
+    char* ip; 
+}t_arg_struct;
+
 // Functions
 void printUsage(); 
 void signalHandler(int signal); 
 void* clientCommunication(void* data); 
 void sendFeedback(int socket, char* feedback); 
 
-int handleLoginRequest(int socket, char* sessionUser); 
+int handleLoginRequest(int socket, char* sessionUser, char* ip); 
 int handleSendRequest(int socket, char* sessionUser); 
 int handleListRequest(int socket, char* sessionUser); 
 int handleReadRequest(int socket, char* sessionUser); 
@@ -100,19 +105,23 @@ int main(int argc, char** argv){
             break; 
         }
         // Start Client
-        fprintf(stdout, "Client connected from %s:%d...\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+        char* clientIP = inet_ntoa(clientAddress.sin_addr); 
+        fprintf(stdout, "Client connected from %s:%d...\n", clientIP, ntohs(clientAddress.sin_port));
         
         if(pthread_mutex_init(&mutex, NULL)){
             perror("ERR: mutex_init"); 
             exit(EXIT_FAILURE); 
         }
-        int socket = newSocket;
+        
+        t_arg_struct* args = (t_arg_struct*)malloc(sizeof(t_arg_struct));
+        args->ip = clientIP; 
+        args->socket = newSocket; 
 
         // Start Thread
         pthread_create(&clients[clientCount],   // Thread object
                        NULL,                    // Default thread attributes
                        clientCommunication,     // Function
-                       (void*)&socket);         // Function parameters (socket descriptor)
+                       (void*)args);           // Function parameters (socket descriptor)
         
         clientCount++; 
         newSocket = -1; 
@@ -148,7 +157,11 @@ int main(int argc, char** argv){
 void* clientCommunication(void* data){
     char buffer[BUFFER]; 
     int size; 
-    int currentClientSocket = *(int*)data; 
+
+    t_arg_struct* args = (t_arg_struct*)data; 
+    int currentClientSocket = args->socket;
+    char* currentClientIP = args->ip; 
+
     int isLoggedIn = 0; 
     char* sessionUser = (char*)malloc(BUFFER); 
 
@@ -196,12 +209,12 @@ void* clientCommunication(void* data){
 
                 printf("LOGIN COMMAND RECEIVED\n");
                 int rc = 0; 
-                if((rc = handleLoginRequest(currentClientSocket, sessionUser)) == -1){
+                if((rc = handleLoginRequest(currentClientSocket, sessionUser, currentClientIP)) == -1){
                     sendFeedback(currentClientSocket, "ERR"); 
                 }else if (rc == -2){
                     sendFeedback(currentClientSocket, "[ ! ] invalid credentials."); 
                 }else if (rc == -3){
-                    sendFeedback(currentClientSocket, "[ ! ] account is locked."); 
+                    sendFeedback(currentClientSocket, "[ ! ] too many tries. your ip is locked."); 
                 }else{
                     sendFeedback(currentClientSocket, "OK"); 
                     isLoggedIn = 1; 
@@ -306,7 +319,7 @@ void sendFeedback(int socket, char* feedback){
 ///////////////////////////////////////////
 //! LOGIN - FUNCTIONALITY 
 ///////////////////////////////////////////
-int handleLoginRequest(int socket, char* sessionUser){
+int handleLoginRequest(int socket, char* sessionUser, char* ip){
     const char* ldapUri = "ldap://ldap.technikum-wien.at:389";
     const int ldapVersion = LDAP_VERSION3; 
     char* ldapUser = (char*)malloc(BUFFER); 
@@ -341,7 +354,6 @@ int handleLoginRequest(int socket, char* sessionUser){
         fprintf(stderr, "ldap_init failed\n"); 
         return -1; 
     }
-    printf("Connected to LDAP server\n"); 
 
     // Set Version Options
     if((rc = ldap_set_option(ldapHandle, LDAP_OPT_PROTOCOL_VERSION, &ldapVersion)) != LDAP_OPT_SUCCESS){
@@ -356,36 +368,34 @@ int handleLoginRequest(int socket, char* sessionUser){
     }
 
     // Variables for Blacklist
-    char* userBlacklist = (char*)malloc(PATH_MAX);
-    char* userBlacklistCounter = (char*)malloc(PATH_MAX); 
-    char* userBlacklistTimestamp = (char*)malloc(PATH_MAX); 
-    sprintf(userBlacklist, "blacklist/%s", user); 
-    sprintf(userBlacklistCounter, "blacklist/%s/counter", user); 
-    sprintf(userBlacklistTimestamp, "blacklist/%s/timestamp", user); 
+    char* ipBlacklist = (char*)malloc(PATH_MAX);
+    char* ipBlacklistCounter = (char*)malloc(PATH_MAX); 
+    char* ipBlacklistTimestamp = (char*)malloc(PATH_MAX); 
+    sprintf(ipBlacklist, "blacklist/%s", ip); 
+    sprintf(ipBlacklistCounter, "blacklist/%s/counter", ip); 
+    sprintf(ipBlacklistTimestamp, "blacklist/%s/timestamp", ip); 
 
     // Create Blacklist Directory for User
-    if(stat(userBlacklist, &st) == -1){
-        mkdir(userBlacklist, 0777);
+    if(stat(ipBlacklist, &st) == -1){
+        mkdir(ipBlacklist, 0777);
 
         // Initialize Counter with 0
-        FILE* counterFile = fopen(userBlacklistCounter, "w"); 
+        FILE* counterFile = fopen(ipBlacklistCounter, "w"); 
         fputs("0", counterFile); 
         fclose(counterFile); 
     }
 
-    FILE* checkTimestamp = fopen(userBlacklistTimestamp, "r"); 
-    if(!checkTimestamp){
-        // File does not exist
-    } else {
+    FILE* checkTimestamp = fopen(ipBlacklistTimestamp, "r"); 
+    if(checkTimestamp){
         char* timestamp = (char*)malloc(BUFFER); 
         fgets(timestamp, BUFFER, checkTimestamp); 
 
         if((strcmp(timestamp, " ")) && (time(0) - atoi(timestamp)< 60)){
             // User is Locked
             free(timestamp); 
-            free(userBlacklist);
-            free(userBlacklistCounter);
-            free(userBlacklistTimestamp);
+            free(ipBlacklist);
+            free(ipBlacklistCounter);
+            free(ipBlacklistTimestamp);
             return -3; 
         }
         free(timestamp); 
@@ -408,7 +418,7 @@ int handleLoginRequest(int socket, char* sessionUser){
     )) != LDAP_SUCCESS){
 
         // Invalid Credentials
-        FILE* readCounter = fopen(userBlacklistCounter, "r");
+        FILE* readCounter = fopen(ipBlacklistCounter, "r");
 
         char* currentCounter = (char*)malloc(BUFFER); 
         char* newCounter = (char*)malloc(BUFFER); 
@@ -421,8 +431,7 @@ int handleLoginRequest(int socket, char* sessionUser){
         }else{
 
             // Save current timestamp to timestamp file
-            printf("Locking user %s\n", user); 
-            FILE* timestamp = fopen(userBlacklistTimestamp, "w"); 
+            FILE* timestamp = fopen(ipBlacklistTimestamp, "w"); 
             char* currentTime = (char*)malloc(BUFFER);
             sprintf(currentTime, "%lu", (unsigned long)time(0)); 
             fputs(currentTime, timestamp); 
@@ -431,26 +440,28 @@ int handleLoginRequest(int socket, char* sessionUser){
 
             free(currentTime); 
 
+            return -3; 
         }
         fclose(readCounter);  
 
-        FILE* updateCounter = fopen(userBlacklistCounter, "w");
+        FILE* updateCounter = fopen(ipBlacklistCounter, "w");
         fputs(newCounter, updateCounter); 
         fclose(updateCounter); 
 
         fprintf(stderr, "LDAP bind error: %s\n", ldap_err2string(rc));
         ldap_unbind_ext_s(ldapHandle, NULL, NULL);
 
-        free(userBlacklist);
-        free(userBlacklistCounter);
-        free(userBlacklistTimestamp);
+        free(ipBlacklist);
+        free(ipBlacklistCounter);
+        free(ipBlacklistTimestamp);
+        free(newCounter);
+        free(currentCounter); 
         return -2; 
-
     }
         
     // Login successful -> Reset Counter
     printf("Login successful\n"); 
-    FILE* resetCounter = fopen(userBlacklistCounter, "w"); 
+    FILE* resetCounter = fopen(ipBlacklistCounter, "w"); 
     fputs("0", resetCounter);
     fclose(resetCounter); 
 
@@ -462,9 +473,9 @@ int handleLoginRequest(int socket, char* sessionUser){
     free(user);
     free(password); 
 
-    free(userBlacklist);
-    free(userBlacklistCounter);
-    free(userBlacklistTimestamp);
+    free(ipBlacklist);
+    free(ipBlacklistCounter);
+    free(ipBlacklistTimestamp);
 
     ldap_unbind_ext_s(ldapHandle, NULL, NULL);
 
@@ -568,10 +579,15 @@ int handleSendRequest(int socket, char* sessionUser){
             perror("RECV Message error");
             return -1; 
         }
+        if(!size){ 
+            // Client aborted with CTRL+C
+            fputs(".\n", mailFile); // Put .\n to make file readable
+            break; 
+        }
         newMail->message[size] = '\0'; 
         printf("Message: %s: %d\n", newMail->message, (int)strlen(newMail->message)); 
         fputs(strcat(newMail->message, "\n"), mailFile); 
-    }while(strcmp(newMail->message, ".\n"));
+    }while(strcmp(newMail->message, ".\n") && !abortRequested);
 
     fclose(mailFile); 
 

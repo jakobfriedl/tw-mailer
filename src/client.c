@@ -15,7 +15,7 @@ int sendDelRequest(int socket);
 int main(int argc, char** argv){
 
     u_int16_t port; 
-    int clientSocket; 
+    int clientSocket = -1; 
     char buffer[BUFFER]; 
     struct sockaddr_in address; 
     int size; 
@@ -99,6 +99,12 @@ int main(int argc, char** argv){
 
                     sendLoginRequest(clientSocket);
                     if(receiveFeedback(clientSocket)){
+                        printf("Login successful, you can use to following commands:\n \
+                                \n   SEND \
+                                \n   LIST \
+                                \n   READ \
+                                \n   DEL \
+                                \n   QUIT\n\n");
                         isLoggedIn = 1; 
                     } 
 

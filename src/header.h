@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 
 #define BUFFER 1024
 #define SUBJECT_LENGTH 80
@@ -16,7 +17,6 @@
 #ifndef SO_REUSEPORT
     #define SO_REUSEPORT 15  
 #endif
-
 typedef struct mail{
     char sender[BUFFER];
     char receiver[BUFFER];

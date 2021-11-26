@@ -8,6 +8,7 @@
         "string_view": "c",
         "initializer_list": "c",
         "utility": "c",
-        "header.h": "c"
+        "header.h": "c",
+        "signal.h": "c"
     }
 }
