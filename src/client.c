@@ -230,17 +230,6 @@ int sendLoginRequest(int socket){
 ///////////////////////////////////////////
 int sendSendRequest(int socket){
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
-
-    // Send Sender
-    do{
-        printf("from: "); 
-        fgets(newMail->sender, sizeof(newMail->sender), stdin); 
-        newMail->sender[strlen(newMail->sender)-1] = '\0'; 
-    } while(!validateUserName(newMail->sender));
-    
-    if(sendData(socket, newMail->sender, sizeof(newMail->sender)) == -1){
-        perror("SEND SENDER error"); 
-    } 
     
     // Send Receiver
     do {
@@ -285,18 +274,6 @@ int sendSendRequest(int socket){
 //* LIST - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendListRequest(int socket){
-    char* user = (char*)malloc(BUFFER); 
-
-    // Send Username
-    do{
-        printf("from: "); 
-        fgets(user, BUFFER, stdin); 
-        user[strlen(user)-1] = '\0'; 
-    } while(!validateUserName(user));
-
-    if(sendData(socket, user, BUFFER) == -1){
-        perror("SEND USER error");  
-    } 
     
     int mailCount = 0;
     int receivedMailCount = 0; 
@@ -316,8 +293,6 @@ int sendListRequest(int socket){
         printf(" %s\n", mails[i]);
     }
 
-    free(user); 
-
     return 0; 
 }
 
@@ -325,20 +300,8 @@ int sendListRequest(int socket){
 //* READ - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendReadRequest(int socket){
-    char* user = (char*)malloc(BUFFER); 
     char* mailNumber = (char*)malloc(BUFFER); 
 
-    // Send Username
-    do{
-        printf("from: "); 
-        fgets(user, BUFFER, stdin); 
-        user[strlen(user)-1] = '\0'; 
-    } while(!validateUserName(user));
-
-    if(sendData(socket, user, BUFFER) == -1){
-        perror("SEND USER error"); 
-    } 
- 
     // Send MailNumber
     printf("id: "); 
     fgets(mailNumber, BUFFER, stdin); 
@@ -362,7 +325,6 @@ int sendReadRequest(int socket){
         }while(strcmp(line, "."));
     }
 
-    free(user); 
     free(mailNumber); 
 
     return 0; 
@@ -372,19 +334,7 @@ int sendReadRequest(int socket){
 //* DEL - FUNCTIONALITY 
 ///////////////////////////////////////////
 int sendDelRequest(int socket){
-    char* user = (char*)malloc(BUFFER); 
     char* mailNumber = (char*)malloc(BUFFER); 
-
-    // Send Username
-    do{
-        printf("from: "); 
-        fgets(user, BUFFER, stdin); 
-        user[strlen(user)-1] = '\0'; 
-    } while(!validateUserName(user));
-
-    if(sendData(socket, user, BUFFER) == -1){
-        perror("SEND USER error"); 
-    } 
 
     // Send MailNumber
     printf("id: "); 
@@ -393,7 +343,6 @@ int sendDelRequest(int socket){
         perror("SEND MAILNR error"); 
     } 
 
-    free(user); 
     free(mailNumber); 
 
     return 0; 

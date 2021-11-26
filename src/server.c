@@ -374,7 +374,8 @@ int handleLoginRequest(int socket, char* sessionUser){
     }
 
     // Set Session
-    strcpy(sessionUser, user); 
+    strcpy(sessionUser, user);
+    sessionUser[strlen(sessionUser)] = '\0';  
 
     free(ldapUser);
     free(user);
@@ -392,12 +393,8 @@ int handleSendRequest(int socket, char* sessionUser){
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
     int size = 0; 
  
-    // Receive Sender
+    // Receive Sender from Session
     strcpy(newMail->sender, sessionUser); 
-    newMail->sender[strlen(newMail->sender)] = '\0'; 
-    if(!validateUserName(newMail->sender)){
-        return -1; 
-    } 
     printf("Sender: %s: %d\n", newMail->sender, (int)strlen(newMail->sender)); 
 
     // Receive Receiver
@@ -506,23 +503,11 @@ int handleSendRequest(int socket, char* sessionUser){
 //! LIST - FUNCTIONALITY
 ///////////////////////////////////////////
 int handleListRequest(int socket, char* sessionUser){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
-    int size = 0; 
-
-    // Receive Username
-    if((size = readline(socket, user, BUFFER)) == -1){
-        perror("RECV SENDER error");
-        return -1; 
-    }
-    user[size] = '\0'; 
-    if(!validateUserName(user)){
-        return -1; 
-    }
-    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(sessionUser)); 
     
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
-    sprintf(directory, "%s%s", mail_spool, user); 
+    sprintf(directory, "%s%s", mail_spool, sessionUser); 
 
     DIR *dir = opendir(directory); 
     struct dirent *dirEntry; 
@@ -580,7 +565,6 @@ int handleListRequest(int socket, char* sessionUser){
         }
     }
 
-    free(user); 
     free(directory); 
     free(pathToFile); 
     return 0; 
@@ -590,20 +574,10 @@ int handleListRequest(int socket, char* sessionUser){
 //! READ - FUNCTIONALITY
 ///////////////////////////////////////////
 int handleReadRequest(int socket, char* sessionUser){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
-    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0; 
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
 
-    // Receive Username
-    if((size = readline(socket, user, BUFFER)) == -1){
-        perror("RECV SENDER error");
-        return -1; 
-    }
-    user[size] = '\0';
-    if(!validateUserName(user)){
-        return -1; 
-    }
-    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(sessionUser)); 
 
     // Receive Mail-Number
     if((size = readline(socket, mailNumber, BUFFER)) == -1){
@@ -616,7 +590,7 @@ int handleReadRequest(int socket, char* sessionUser){
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
 
-    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber);
+    sprintf(pathToFile, "%s%s/%s", mail_spool, sessionUser, mailNumber);
 
     if(pthread_mutex_lock(&mutex)){
         perror("ERR: mutex_lock"); 
@@ -642,7 +616,6 @@ int handleReadRequest(int socket, char* sessionUser){
 
     free(directory);
     free(pathToFile); 
-    free(user);
     free(mailNumber); 
 
     return 0;
@@ -652,20 +625,10 @@ int handleReadRequest(int socket, char* sessionUser){
 //! DEL - FUNCTIONALITY
 ///////////////////////////////////////////
 int handleDelRequest(int socket, char* sessionUser){
-    char* user = (char*)malloc(BUFFER * sizeof(char)); 
-    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0;
+    char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
 
-    // Receive Username
-    if((size = readline(socket, user, BUFFER)) == -1){
-        perror("RECV SENDER error");
-        return -1; 
-    }
-    user[size] = '\0';
-    if(!validateUserName(user)){
-        return -1; 
-    }
-    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(sessionUser)); 
 
     // Receive Mail-Number
     if((size = readline(socket, mailNumber, BUFFER)) == -1){
@@ -678,7 +641,7 @@ int handleDelRequest(int socket, char* sessionUser){
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
     
-    sprintf(pathToFile, "%s%s/%s", mail_spool, user, mailNumber); 
+    sprintf(pathToFile, "%s%s/%s", mail_spool, sessionUser, mailNumber); 
     if(pthread_mutex_lock(&mutex)){
         perror("ERR: mutex_lock"); 
         return -1;  
@@ -688,7 +651,6 @@ int handleDelRequest(int socket, char* sessionUser){
 
     free(directory);
     free(pathToFile); 
-    free(user);
     free(mailNumber); 
 
     return isFound; 
