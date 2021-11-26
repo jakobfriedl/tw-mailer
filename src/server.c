@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <ldap.h>
+#include <time.h>
 
 // Global Variables
 struct stat st = {0}; 
@@ -183,6 +184,12 @@ void* clientCommunication(void* data){
         buffer[size] = '\0'; // Terminate String
 
         // Check Command
+        if(!strcmp(buffer, "QUIT")){
+            printf("QUIT COMMAND RECEIVED\n");
+            isLoggedIn = 0; 
+            break;
+        }
+
         if(!isLoggedIn){
 
             if(!strcmp(buffer, "LOGIN")){
@@ -192,14 +199,14 @@ void* clientCommunication(void* data){
                 if((rc = handleLoginRequest(currentClientSocket, sessionUser)) == -1){
                     sendFeedback(currentClientSocket, "ERR"); 
                 }else if (rc == -2){
-                    sendFeedback(currentClientSocket, "[ ! ] invalid credentials"); 
+                    sendFeedback(currentClientSocket, "[ ! ] invalid credentials."); 
+                }else if (rc == -3){
+                    sendFeedback(currentClientSocket, "[ ! ] account is locked."); 
                 }else{
                     sendFeedback(currentClientSocket, "OK"); 
                     isLoggedIn = 1; 
                 }
-            } else if(!strcmp(buffer, "QUIT")){
-                printf("QUIT COMMAND RECEIVED\n");
-                break; 
+
             } else {
                 // Unknown command
                 sendFeedback(currentClientSocket, "ERR"); 
@@ -238,11 +245,7 @@ void* clientCommunication(void* data){
                 }else{
                     sendFeedback(currentClientSocket, "OK"); 
                 }
-
-            } else if(!strcmp(buffer, "QUIT")){
-                printf("QUIT COMMAND RECEIVED\n");
-                isLoggedIn = 0; 
-                break; 
+ 
             } else {
                 // Unknown command
                 sendFeedback(currentClientSocket, "ERR"); 
@@ -330,7 +333,6 @@ int handleLoginRequest(int socket, char* sessionUser){
         return -1; 
     }
     password[size] = '\0'; 
-    // printf("Password: %s: %d\n", password, (int)strlen(password)); 
 
     // Ldap Connection
     int rc = 0; 
@@ -353,6 +355,42 @@ int handleLoginRequest(int socket, char* sessionUser){
         return -1; 
     }
 
+    // Variables for Blacklist
+    char* userBlacklist = (char*)malloc(PATH_MAX);
+    char* userBlacklistCounter = (char*)malloc(PATH_MAX); 
+    char* userBlacklistTimestamp = (char*)malloc(PATH_MAX); 
+    sprintf(userBlacklist, "blacklist/%s", user); 
+    sprintf(userBlacklistCounter, "blacklist/%s/counter", user); 
+    sprintf(userBlacklistTimestamp, "blacklist/%s/timestamp", user); 
+
+    // Create Blacklist Directory for User
+    if(stat(userBlacklist, &st) == -1){
+        mkdir(userBlacklist, 0777);
+
+        // Initialize Counter with 0
+        FILE* counterFile = fopen(userBlacklistCounter, "w"); 
+        fputs("0", counterFile); 
+        fclose(counterFile); 
+    }
+
+    FILE* checkTimestamp = fopen(userBlacklistTimestamp, "r"); 
+    if(!checkTimestamp){
+        // File does not exist
+    } else {
+        char* timestamp = (char*)malloc(BUFFER); 
+        fgets(timestamp, BUFFER, checkTimestamp); 
+
+        if((strcmp(timestamp, " ")) && (time(0) - atoi(timestamp)< 60)){
+            // User is Locked
+            free(timestamp); 
+            free(userBlacklist);
+            free(userBlacklistCounter);
+            free(userBlacklistTimestamp);
+            return -3; 
+        }
+        free(timestamp); 
+    }
+
     // Bind Credentials
     BerValue bindCredentials; 
     bindCredentials.bv_val = password; 
@@ -368,10 +406,53 @@ int handleLoginRequest(int socket, char* sessionUser){
         NULL,
         &serverCredentials
     )) != LDAP_SUCCESS){
+
+        // Invalid Credentials
+        FILE* readCounter = fopen(userBlacklistCounter, "r");
+
+        char* currentCounter = (char*)malloc(BUFFER); 
+        char* newCounter = (char*)malloc(BUFFER); 
+
+        fgets(currentCounter, BUFFER,  readCounter); 
+        int currentCounterInt = atoi(currentCounter); 
+        currentCounterInt++; 
+        if(currentCounterInt < 3){
+            sprintf(newCounter, "%d", currentCounterInt); 
+        }else{
+
+            // Save current timestamp to timestamp file
+            printf("Locking user %s\n", user); 
+            FILE* timestamp = fopen(userBlacklistTimestamp, "w"); 
+            char* currentTime = (char*)malloc(BUFFER);
+            sprintf(currentTime, "%lu", (unsigned long)time(0)); 
+            fputs(currentTime, timestamp); 
+            fclose(timestamp); 
+            strcpy(newCounter, "0"); 
+
+            free(currentTime); 
+
+        }
+        fclose(readCounter);  
+
+        FILE* updateCounter = fopen(userBlacklistCounter, "w");
+        fputs(newCounter, updateCounter); 
+        fclose(updateCounter); 
+
         fprintf(stderr, "LDAP bind error: %s\n", ldap_err2string(rc));
         ldap_unbind_ext_s(ldapHandle, NULL, NULL);
+
+        free(userBlacklist);
+        free(userBlacklistCounter);
+        free(userBlacklistTimestamp);
         return -2; 
+
     }
+        
+    // Login successful -> Reset Counter
+    printf("Login successful\n"); 
+    FILE* resetCounter = fopen(userBlacklistCounter, "w"); 
+    fputs("0", resetCounter);
+    fclose(resetCounter); 
 
     // Set Session
     strcpy(sessionUser, user);
@@ -380,6 +461,10 @@ int handleLoginRequest(int socket, char* sessionUser){
     free(ldapUser);
     free(user);
     free(password); 
+
+    free(userBlacklist);
+    free(userBlacklistCounter);
+    free(userBlacklistTimestamp);
 
     ldap_unbind_ext_s(ldapHandle, NULL, NULL);
 

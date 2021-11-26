@@ -88,6 +88,11 @@ int main(int argc, char** argv){
             } 
 
             // Check Command
+            if(!strcmp(buffer, "QUIT")){
+                isLoggedIn = 0; 
+                break;
+            }
+
             if(!isLoggedIn){
 
                 if(!strcmp(buffer, "LOGIN")){
@@ -97,9 +102,6 @@ int main(int argc, char** argv){
                         isLoggedIn = 1; 
                     } 
 
-                } else if(!strcmp(buffer, "QUIT")){
-                    isLoggedIn = 0; 
-                    break; 
                 } else {
                     receiveFeedback(clientSocket); 
                 }
@@ -124,13 +126,11 @@ int main(int argc, char** argv){
                     sendDelRequest(clientSocket);
                     receiveFeedback(clientSocket); 
 
-                } else if(!strcmp(buffer, "QUIT")){
-                    break; 
                 } else {
                     receiveFeedback(clientSocket); 
                 }
-
             }
+
         }
 
     }while(strcmp(buffer, "QUIT")); 
