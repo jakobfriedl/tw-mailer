@@ -4,9 +4,10 @@
 
 ## Starting the program
 
-*install UUID-library*
+*install and setup LDAP*
 ```bash
-    sudo apt-get uuid-dev
+    sudo apt install libldap2-dev ldap-utils
+    sudo cp ./config/ldap.conf /etc/ldap/ldap.conf
 ```
 
 *compile files:*

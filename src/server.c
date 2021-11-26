@@ -3,7 +3,9 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <pthread.h>
+#include <ldap.h>
 
+// Global Variables
 struct stat st = {0}; 
 
 char mail_spool[PATH_MAX]; 
@@ -12,11 +14,10 @@ int serverSocket = -1;
 int newSocket = -1; 
 int abortRequested = 0; 
 
-// Definitions for Threading
+// Threading
 #define NUM_CLIENTS 100
 pthread_mutex_t mutex;
 pthread_t clients[NUM_CLIENTS];
-pthread_attr_t attributes[NUM_CLIENTS];
 
 // Functions
 void printUsage(); 
@@ -24,11 +25,11 @@ void signalHandler(int signal);
 void* clientCommunication(void* data); 
 void sendFeedback(int socket, char* feedback); 
 
-int handleLoginRequest(int socket); 
-int handleSendRequest(int socket); 
-int handleListRequest(int socket); 
-int handleReadRequest(int socket); 
-int handleDelRequest(int socket); 
+int handleLoginRequest(int socket, char* sessionUser); 
+int handleSendRequest(int socket, char* sessionUser); 
+int handleListRequest(int socket, char* sessionUser); 
+int handleReadRequest(int socket, char* sessionUser); 
+int handleDelRequest(int socket, char* sessionUser); 
 
 int main(int argc, char** argv){
     socklen_t addressLength;
@@ -104,17 +105,15 @@ int main(int argc, char** argv){
             perror("ERR: mutex_init"); 
             exit(EXIT_FAILURE); 
         }
-        pthread_attr_init(&attributes[clientCount]); 
         int socket = newSocket;
 
         // Start Thread
-        pthread_create(&clients[clientCount],           // Thread object
-                       &attributes[clientCount],        // Default thread attributes
-                       clientCommunication,             // Function
-                       (void*)&socket);                 // Function parameters (socket descriptor)
+        pthread_create(&clients[clientCount],   // Thread object
+                       NULL,                    // Default thread attributes
+                       clientCommunication,     // Function
+                       (void*)&socket);         // Function parameters (socket descriptor)
         
         clientCount++; 
-
         newSocket = -1; 
     }
 
@@ -149,14 +148,12 @@ void* clientCommunication(void* data){
     char buffer[BUFFER]; 
     int size; 
     int currentClientSocket = *(int*)data; 
+    int isLoggedIn = 0; 
+    char* sessionUser = (char*)malloc(BUFFER); 
 
     // Welcome Client
     strcpy(buffer, "\nWelcome to TW-Mail-Server, you can use to following commands:\n \
                     \n   LOGIN \
-                    \n   SEND \
-                    \n   LIST \
-                    \n   READ \
-                    \n   DEL \
                     \n   QUIT\n");
     if (send(currentClientSocket, buffer, strlen(buffer), 0) == -1){
         perror("SEND error");
@@ -186,54 +183,71 @@ void* clientCommunication(void* data){
         buffer[size] = '\0'; // Terminate String
 
         // Check Command
-        if(!strcmp(buffer, "LOGIN")){
+        if(!isLoggedIn){
 
-            printf("LOGIN COMMAND RECEIVED\n");
-            if(handleLoginRequest(currentClientSocket) == -1){
-                sendFeedback(currentClientSocket, "ERR"); 
-            }else{
-                sendFeedback(currentClientSocket, "OK"); 
-            }
+            if(!strcmp(buffer, "LOGIN")){
 
-        } else if(!strcmp(buffer, "SEND")){   
-
-            printf("SEND COMMAND RECEIVED\n");
-            if(handleSendRequest(currentClientSocket) == -1){
-                sendFeedback(currentClientSocket, "ERR"); 
-            }else{
-                sendFeedback(currentClientSocket, "OK"); 
-            }
-
-        } else if(!strcmp(buffer, "LIST")){
-
-            printf("LIST COMMAND RECEIVED\n");
-            if(handleListRequest(currentClientSocket) == -1){
+                printf("LOGIN COMMAND RECEIVED\n");
+                int rc = 0; 
+                if((rc = handleLoginRequest(currentClientSocket, sessionUser)) == -1){
+                    sendFeedback(currentClientSocket, "ERR"); 
+                }else if (rc == -2){
+                    sendFeedback(currentClientSocket, "[ ! ] invalid credentials"); 
+                }else{
+                    sendFeedback(currentClientSocket, "OK"); 
+                    isLoggedIn = 1; 
+                }
+            } else if(!strcmp(buffer, "QUIT")){
+                printf("QUIT COMMAND RECEIVED\n");
+                break; 
+            } else {
+                // Unknown command
                 sendFeedback(currentClientSocket, "ERR"); 
             }
 
+        }else{ // Authenticated User
 
-        } else if(!strcmp(buffer, "READ")){
+            if(!strcmp(buffer, "SEND")){   
 
-            printf("READ COMMAND RECEIVED\n");
-            if(handleReadRequest(currentClientSocket) == -1){
+                printf("SEND COMMAND RECEIVED\n");
+                if(handleSendRequest(currentClientSocket, sessionUser) == -1){
+                    sendFeedback(currentClientSocket, "ERR"); 
+                }else{
+                    sendFeedback(currentClientSocket, "OK"); 
+                }
+
+            } else if(!strcmp(buffer, "LIST")){
+
+                printf("LIST COMMAND RECEIVED\n");
+                if(handleListRequest(currentClientSocket, sessionUser) == -1){
+                    sendFeedback(currentClientSocket, "ERR"); 
+                }
+
+            } else if(!strcmp(buffer, "READ")){
+
+                printf("READ COMMAND RECEIVED\n");
+                if(handleReadRequest(currentClientSocket, sessionUser) == -1){
+                    sendFeedback(currentClientSocket, "ERR"); 
+                }
+
+            } else if(!strcmp(buffer, "DEL")){
+
+                printf("DEL COMMAND RECEIVED\n");
+                if(handleDelRequest(currentClientSocket, sessionUser) == -1){
+                    sendFeedback(currentClientSocket, "ERR"); 
+                }else{
+                    sendFeedback(currentClientSocket, "OK"); 
+                }
+
+            } else if(!strcmp(buffer, "QUIT")){
+                printf("QUIT COMMAND RECEIVED\n");
+                isLoggedIn = 0; 
+                break; 
+            } else {
+                // Unknown command
                 sendFeedback(currentClientSocket, "ERR"); 
             }
 
-        } else if(!strcmp(buffer, "DEL")){
-
-            printf("DEL COMMAND RECEIVED\n");
-            if(handleDelRequest(currentClientSocket) == -1){
-                sendFeedback(currentClientSocket, "ERR"); 
-            }else{
-                sendFeedback(currentClientSocket, "OK"); 
-            }
-
-        } else if(!strcmp(buffer, "QUIT")){
-            printf("QUIT COMMAND RECEIVED\n");
-            break; 
-        } else {
-            // Unknown command
-            sendFeedback(currentClientSocket, "ERR"); 
         }
 
     }while(strcmp(buffer, "QUIT") && !abortRequested); 
@@ -247,6 +261,7 @@ void* clientCommunication(void* data){
         currentClientSocket = -1;
     }
 
+    free(sessionUser); 
     pthread_exit(NULL);
     return NULL; 
 }
@@ -279,7 +294,7 @@ void signalHandler(int signal){
 }
 
 void sendFeedback(int socket, char* feedback){
-    if(send(socket, feedback, sizeof(feedback), 0) == -1){
+    if(send(socket, feedback, strlen(feedback), 0) == -1){
         perror("Server failed to send answer"); 
         return; 
     }
@@ -288,7 +303,11 @@ void sendFeedback(int socket, char* feedback){
 ///////////////////////////////////////////
 //! LOGIN - FUNCTIONALITY 
 ///////////////////////////////////////////
-int handleLoginRequest(int socket){
+int handleLoginRequest(int socket, char* sessionUser){
+    const char* ldapUri = "ldap://ldap.technikum-wien.at:389";
+    const int ldapVersion = LDAP_VERSION3; 
+    char* ldapUser = (char*)malloc(BUFFER); 
+
     char* user = (char*)malloc(BUFFER); 
     char* password = (char*)malloc(BUFFER); 
     int size = 0; 
@@ -303,6 +322,7 @@ int handleLoginRequest(int socket){
         return -1; 
     } 
     printf("Username: %s: %d\n", user, (int)strlen(user)); 
+    sprintf(ldapUser, "uid=%s,ou=people,dc=technikum-wien,dc=at", user); 
 
     // Receive Password
     if((size = readline(socket, password, BUFFER)) == -1){
@@ -310,7 +330,57 @@ int handleLoginRequest(int socket){
         return -1; 
     }
     password[size] = '\0'; 
-    printf("Password: %s: %d\n", password, (int)strlen(password)); 
+    // printf("Password: %s: %d\n", password, (int)strlen(password)); 
+
+    // Ldap Connection
+    int rc = 0; 
+    LDAP* ldapHandle; 
+    if((rc = ldap_initialize(&ldapHandle, ldapUri)) != LDAP_SUCCESS){
+        fprintf(stderr, "ldap_init failed\n"); 
+        return -1; 
+    }
+    printf("Connected to LDAP server\n"); 
+
+    // Set Version Options
+    if((rc = ldap_set_option(ldapHandle, LDAP_OPT_PROTOCOL_VERSION, &ldapVersion)) != LDAP_OPT_SUCCESS){
+        fprintf(stderr, "ldap_set_option(PROTOCOL_VERSION): %s\n", ldap_err2string(rc)); 
+        return -1; 
+    }
+
+    // Start TSL Connection
+    if((rc = ldap_start_tls_s(ldapHandle, NULL, NULL)) != LDAP_SUCCESS){
+        fprintf(stderr, "ldap_start_tls_s(): %s\n", ldap_err2string(rc));
+        return -1; 
+    }
+
+    // Bind Credentials
+    BerValue bindCredentials; 
+    bindCredentials.bv_val = password; 
+    bindCredentials.bv_len = strlen(password); 
+    BerValue *serverCredentials; 
+
+    if((rc = ldap_sasl_bind_s(
+        ldapHandle,
+        ldapUser,
+        LDAP_SASL_SIMPLE,
+        &bindCredentials,
+        NULL,
+        NULL,
+        &serverCredentials
+    )) != LDAP_SUCCESS){
+        fprintf(stderr, "LDAP bind error: %s\n", ldap_err2string(rc));
+        ldap_unbind_ext_s(ldapHandle, NULL, NULL);
+        return -2; 
+    }
+
+    // Set Session
+    strcpy(sessionUser, user); 
+
+    free(ldapUser);
+    free(user);
+    free(password); 
+
+    ldap_unbind_ext_s(ldapHandle, NULL, NULL);
 
     return 0; 
 }
@@ -318,16 +388,13 @@ int handleLoginRequest(int socket){
 ///////////////////////////////////////////
 //! SEND - FUNCTIONALITY 
 ///////////////////////////////////////////
-int handleSendRequest(int socket){
+int handleSendRequest(int socket, char* sessionUser){
     mail_t* newMail = (mail_t*)malloc(sizeof(mail_t));
     int size = 0; 
  
     // Receive Sender
-    if((size = readline(socket, newMail->sender, sizeof(newMail->sender))) == -1){
-        perror("RECV SENDER error");
-        return -1; 
-    }
-    newMail->sender[size] = '\0'; 
+    strcpy(newMail->sender, sessionUser); 
+    newMail->sender[strlen(newMail->sender)] = '\0'; 
     if(!validateUserName(newMail->sender)){
         return -1; 
     } 
@@ -438,7 +505,7 @@ int handleSendRequest(int socket){
 ///////////////////////////////////////////
 //! LIST - FUNCTIONALITY
 ///////////////////////////////////////////
-int handleListRequest(int socket){
+int handleListRequest(int socket, char* sessionUser){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0; 
 
@@ -451,7 +518,7 @@ int handleListRequest(int socket){
     if(!validateUserName(user)){
         return -1; 
     }
-    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
     
     char* directory = (char*)malloc(PATH_MAX);
     char* pathToFile = (char*)malloc(PATH_MAX);
@@ -474,10 +541,15 @@ int handleListRequest(int socket){
         if(strcmp(dirEntry->d_name, ".") && strcmp(dirEntry->d_name, "..")){ 
             sprintf(pathToFile, "%s/%s", directory, dirEntry->d_name);
 
+            if(pthread_mutex_lock(&mutex)){
+                perror("ERR: mutex_lock"); 
+                return -1;  
+            }
             // Open file in "read"-mode
             FILE* file = fopen(pathToFile, "r"); 
-            int count = 0;   
+            pthread_mutex_unlock(&mutex); 
             
+            int count = 0;   
             if(file != NULL){
                 char line[BUFFER]; 
                 while(fgets(line, sizeof(line), file) != NULL){
@@ -491,6 +563,7 @@ int handleListRequest(int socket){
                 }
                 fclose(file); 
             }
+            // printf("done in thread %d\n", (int)pthread_self());
         }
     }
     closedir(dir); 
@@ -516,7 +589,7 @@ int handleListRequest(int socket){
 ///////////////////////////////////////////
 //! READ - FUNCTIONALITY
 ///////////////////////////////////////////
-int handleReadRequest(int socket){
+int handleReadRequest(int socket, char* sessionUser){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
     char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0; 
@@ -530,7 +603,7 @@ int handleReadRequest(int socket){
     if(!validateUserName(user)){
         return -1; 
     }
-    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
 
     // Receive Mail-Number
     if((size = readline(socket, mailNumber, BUFFER)) == -1){
@@ -550,11 +623,13 @@ int handleReadRequest(int socket){
         return -1;  
     } 
     FILE* mail = fopen(pathToFile, "r"); 
+    pthread_mutex_unlock(&mutex); 
+    
     if(!mail){
         return -1; // File or User not found
     }
-    sendFeedback(socket, "OK"); 
 
+    sendFeedback(socket, "OK"); 
     char line[BUFFER]; 
     while(fgets(line, sizeof(line), mail) != NULL){
         line[strlen(line)-1] = '\0'; 
@@ -564,8 +639,6 @@ int handleReadRequest(int socket){
         }
     }
     fclose(mail); 
-
-    pthread_mutex_unlock(&mutex); 
 
     free(directory);
     free(pathToFile); 
@@ -578,7 +651,7 @@ int handleReadRequest(int socket){
 ///////////////////////////////////////////
 //! DEL - FUNCTIONALITY
 ///////////////////////////////////////////
-int handleDelRequest(int socket){
+int handleDelRequest(int socket, char* sessionUser){
     char* user = (char*)malloc(BUFFER * sizeof(char)); 
     char* mailNumber = (char*)malloc(BUFFER * sizeof(char)); 
     int size = 0;
@@ -592,7 +665,7 @@ int handleDelRequest(int socket){
     if(!validateUserName(user)){
         return -1; 
     }
-    printf("Username: %s: %d\n", user, (int)strlen(user)); 
+    printf("Username: %s: %d\n", sessionUser, (int)strlen(user)); 
 
     // Receive Mail-Number
     if((size = readline(socket, mailNumber, BUFFER)) == -1){

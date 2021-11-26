@@ -28,6 +28,8 @@ static ssize_t my_read(int socketDecriptor, char *ptr);
 ssize_t readline(int socketDecriptor, void *buffer, size_t maxlen);
 ssize_t writen(int socketDescriptor, const void *buffer, size_t n); 
 int validateUserName(char* username); 
+int sendData(int socket, char* buffer, int bytesToSend); 
+
 
 static ssize_t my_read(int socketDecriptor, char *ptr){
     static int read_cnt = 0;
@@ -56,20 +58,20 @@ ssize_t readline(int socketDecriptor, void *buffer, size_t maxlen){
     char c, *ptr;
     ptr = buffer;
 
-    for(n = 1; n < maxlen; n++){
+    for(n = 1; n < (int)maxlen; n++){
         if((rc = my_read(socketDecriptor, &c)) == 1){
             *ptr++ = c;
             if (c == '\n')
-                break; // newline is stored
+                break;      // newline is stored
         }else if(rc == 0){
             if (n == 1)
-                return 0; // EOF, no data read
+                return 0;   // EOF, no data read
             else
-                break; // EOF, some data was read
+                break;      // EOF, some data was read
         }else
-            return -1; // error, errno set by read() in my_read()
+            return -1;      // error, errno set by read() in my_read()
     }
-    *ptr = 0; // null terminate
+    *ptr = 0;               // null terminate
 
     return n; 
 }
@@ -98,19 +100,33 @@ ssize_t writen(int socketDescriptor, const void *buffer, size_t n){
 int validateUserName(char* username){
     // Check if username is max. 8 characters long
     if(strlen(username) > MAX_USERNAME_LENGTH || strlen(username) < MIN_USERNAME_LENGTH){
-        printf("Username too long\n");
+        printf("[ ! ] username too long.\n");
         return 0; 
     }
 
     // Check if username only contains letters and numbers
-    for(int i = 0; i <= strlen(username)-1; i++){
+    for(int i = 0; i <= (int)strlen(username)-1; i++){
         if((username[i] >= 'a' && username[i] <= 'z')
         || (username[i] >= '0' && username[i] <= '9')){
             // Skip character
         }else{
-            printf("Username contains invalid characters\n"); 
+            printf("[ ! ] username contains invalid characters.\n"); 
             return 0; 
         }
     }
     return 1; 
+}
+
+int sendData(int socket, char* buffer, int bytesToSend){
+    int size = (int)strlen(buffer); 
+    if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        size -= 2; 
+    }else if(buffer[size-1] == '\n'){
+        buffer[size] = 0; 
+        --size;
+    }
+    buffer[size] = '\0';
+ 
+    return writen(socket, buffer, bytesToSend-1);  
 }

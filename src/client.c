@@ -3,7 +3,6 @@
 
 // Functions
 void printUsage();
-int sendData(int socket, char* buffer, int bytesToSend); 
 int receiveFeedback(int socket); 
 void getPassword(char* pw);
 
@@ -20,7 +19,8 @@ int main(int argc, char** argv){
     char buffer[BUFFER]; 
     struct sockaddr_in address; 
     int size; 
-    int quit = 0;
+
+    int isLoggedIn = 0; 
 
     // Create Socket
     if((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
@@ -78,7 +78,6 @@ int main(int argc, char** argv){
                 buffer[size] = 0; 
             }
             buffer[size] = '\0'; 
-            quit = (!strcmp(buffer, "QUIT"));  
             
             if(size == 0) continue;  
             
@@ -89,36 +88,52 @@ int main(int argc, char** argv){
             } 
 
             // Check Command
-            if(!strcmp(buffer, "LOGIN")){
+            if(!isLoggedIn){
 
-                sendLoginRequest(clientSocket);
-                receiveFeedback(clientSocket); 
+                if(!strcmp(buffer, "LOGIN")){
 
-            }else if(!strcmp(buffer, "SEND")){ 
+                    sendLoginRequest(clientSocket);
+                    if(receiveFeedback(clientSocket)){
+                        isLoggedIn = 1; 
+                    } 
 
-                sendSendRequest(clientSocket);
-                receiveFeedback(clientSocket);
+                } else if(!strcmp(buffer, "QUIT")){
+                    isLoggedIn = 0; 
+                    break; 
+                } else {
+                    receiveFeedback(clientSocket); 
+                }
 
-            } else if(!strcmp(buffer, "LIST")){
-                
-                sendListRequest(clientSocket);
+            }else{
 
-            } else if(!strcmp(buffer, "READ")){ 
+                if(!strcmp(buffer, "SEND")){ 
 
-                sendReadRequest(clientSocket);
+                    sendSendRequest(clientSocket);
+                    receiveFeedback(clientSocket);
 
-            } else if(!strcmp(buffer, "DEL")){
+                } else if(!strcmp(buffer, "LIST")){
+                    
+                    sendListRequest(clientSocket);
 
-                sendDelRequest(clientSocket);
-                receiveFeedback(clientSocket); 
+                } else if(!strcmp(buffer, "READ")){ 
 
-            } else if(!strcmp(buffer, "QUIT")){
-                break; 
-            } else {
-                receiveFeedback(clientSocket); 
+                    sendReadRequest(clientSocket);
+
+                } else if(!strcmp(buffer, "DEL")){
+
+                    sendDelRequest(clientSocket);
+                    receiveFeedback(clientSocket); 
+
+                } else if(!strcmp(buffer, "QUIT")){
+                    break; 
+                } else {
+                    receiveFeedback(clientSocket); 
+                }
+
             }
         }
-    }while(!quit); 
+
+    }while(strcmp(buffer, "QUIT")); 
 
     // Close Socket
     if(clientSocket != -1){
@@ -136,20 +151,6 @@ int main(int argc, char** argv){
 
 void printUsage(){
     fprintf(stdout, "./twmailer-client <ip> <port>\n"); 
-}
-
-int sendData(int socket, char* buffer, int bytesToSend){
-    int size = (int)strlen(buffer); 
-    if(buffer[size-2] == '\r' && buffer[size-1] == '\n'){
-        buffer[size] = 0; 
-        size -= 2; 
-    }else if(buffer[size-1] == '\n'){
-        buffer[size] = 0; 
-        --size;
-    }
-    buffer[size] = '\0';
- 
-    return writen(socket, buffer, bytesToSend-1);  
 }
 
 int receiveFeedback(int socket){
@@ -176,14 +177,14 @@ void getPassword(char* pw){
     int c, i = 0;
 
     // Saving the old settings of STDIN_FILENO and copy settings for resetting
-    tcgetattr( STDIN_FILENO, &oldt);
+    tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
     
     // Setting the approriate bit in the termios struct
     newt.c_lflag &= ~(ECHO);          
 
-    /// etting the new bits
-    tcsetattr( STDIN_FILENO, TCSANOW, &newt);
+    /// Setting the new bits
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
     // Reading the password from the console
     while ((c = getchar())!= '\n' && c != EOF && i < BUFFER){
@@ -192,7 +193,7 @@ void getPassword(char* pw){
     pw[i] = '\0';
 
     // Resetting our old STDIN_FILENO
-    tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     printf("\n"); 
 }
 
@@ -216,7 +217,7 @@ int sendLoginRequest(int socket){
 
     // Send Passwort
     printf("password: "); 
-    getPassword(password);
+    getPassword(password); // Hide on Input
     if(sendData(socket, password, BUFFER) == -1){
         perror("SEND PASSWORD error"); 
     } 
@@ -240,7 +241,6 @@ int sendSendRequest(int socket){
     if(sendData(socket, newMail->sender, sizeof(newMail->sender)) == -1){
         perror("SEND SENDER error"); 
     } 
-
     
     // Send Receiver
     do {
@@ -254,11 +254,14 @@ int sendSendRequest(int socket){
     } 
 
     // Send Subject
+    int c = 0; 
     do {
+        if(c > 0) printf("[ ! ] subject too long.\n");
         printf("subject: "); 
         fgets(newMail->subject, sizeof(newMail->subject), stdin);
         newMail->subject[strlen(newMail->subject)-1] = '\0'; 
-    } while(strlen(newMail->subject) > SUBJECT_LENGTH);
+        c++; 
+    } while(strlen(newMail->subject) > SUBJECT_LENGTH || strlen(newMail->subject) <= 0);
     
     if(sendData(socket, newMail->subject, sizeof(newMail->subject)) == -1){
         perror("SEND SUBJECT error"); 
