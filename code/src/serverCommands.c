@@ -76,10 +76,6 @@ int handleLoginRequest(int socket, char* sessionUser, char* ip){
 
         if((strcmp(timestamp, " ")) && (time(0) - atoi(timestamp)< 60)){
             // User is Locked
-            free(timestamp); 
-            free(ipBlacklist);
-            free(ipBlacklistCounter);
-            free(ipBlacklistTimestamp);
             return -3; 
         }
         free(timestamp); 
@@ -134,12 +130,7 @@ int handleLoginRequest(int socket, char* sessionUser, char* ip){
 
         fprintf(stderr, "LDAP bind error: %s\n", ldap_err2string(rc));
         ldap_unbind_ext_s(ldapHandle, NULL, NULL);
-
-        free(ipBlacklist);
-        free(ipBlacklistCounter);
-        free(ipBlacklistTimestamp);
-        free(newCounter);
-        free(currentCounter); 
+        
         return -2; 
     }
         
