@@ -7,5 +7,6 @@
 void printUsage();
 int receiveFeedback(int socket); 
 void getPassword(char* pw);
+int sendData(int socket, char* buffer, int bytesToSend); 
 
 #endif

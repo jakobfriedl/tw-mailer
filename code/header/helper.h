@@ -31,6 +31,5 @@ ssize_t my_read(int socketDecriptor, char *ptr);
 ssize_t readline(int socketDecriptor, void *buffer, size_t maxlen);
 ssize_t writen(int socketDescriptor, const void *buffer, size_t n); 
 int validateUserName(char* username); 
-int sendData(int socket, char* buffer, int bytesToSend); 
 
 #endif

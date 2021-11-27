@@ -107,7 +107,9 @@ int handleLoginRequest(int socket, char* sessionUser, char* ip){
         int currentCounterInt = atoi(currentCounter); 
         currentCounterInt++; 
         if(currentCounterInt < 3){
+
             sprintf(newCounter, "%d", currentCounterInt); 
+            
         }else{
 
             // Save current timestamp to timestamp file
