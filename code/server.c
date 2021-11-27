@@ -7,6 +7,7 @@ int main(int argc, char** argv){
     struct sockaddr_in address, clientAddress; 
     int reuseValue = 1; 
 
+    // Set global variables
     abortRequested = 0;
     serverSocket = -1;
     newSocket = -1; 
