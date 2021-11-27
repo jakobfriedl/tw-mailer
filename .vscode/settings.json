@@ -9,6 +9,12 @@
         "initializer_list": "c",
         "utility": "c",
         "header.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "termios.h": "c",
+        "clienthelper.h": "c",
+        "helper.h": "c",
+        "clientcommands.h": "c",
+        "stat.h": "c",
+        "servercommands.h": "c"
     }
 }
