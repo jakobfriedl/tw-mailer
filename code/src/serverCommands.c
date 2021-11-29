@@ -118,7 +118,10 @@ int handleLoginRequest(int socket, char* sessionUser, char* ip){
             sprintf(currentTime, "%lu", (unsigned long)time(0)); 
             fputs(currentTime, timestamp); 
             fclose(timestamp); 
-            strcpy(newCounter, "0"); 
+
+            FILE* updateCounter = fopen(ipBlacklistCounter, "w");
+            fputs("0", updateCounter); 
+            fclose(updateCounter);
 
             free(currentTime); 
 
